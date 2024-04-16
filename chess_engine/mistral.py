@@ -13,11 +13,6 @@ from pydantic import BaseModel, Field
 from config import MISTRAL_API_KEY
 
 
-class ChessMove(BaseModel):
-    thoughts: str = Field(description="Board analysis, thoughts or reasoning steps towards the best move.")
-    move: str = Field(description="Your move, formatted in Standard Algebraic Notation (SAN).")
-
-
 def prompt_template(role: str, message: str) -> dict[str, str]:
     return {
         "role": role,
@@ -53,7 +48,7 @@ def user_chess(board: chess.Board) -> dict[str, str]:
     """ Returns a content template for Mistral chat."""
 
     role = role_to_str(board)
-    board_str = generate_prompt(board, pgn=False, positions=False, legalmoves=True, threats=False)
+    board_str = generate_prompt(board, pgn=False, positions=True, legalmoves=True, threats=True)
     prompt = "\n".join([role, board_str])
     template = f"[INST] {prompt} [/INST]"
 
@@ -101,7 +96,9 @@ def get_mistral_move(fen: str, model: str):
 def validate_move(output: dict, board: chess.Board):
     """Validate the move suggested by the Mistral API."""
     def extract_json(text):
-        """finds opening {, closing }, and returns the JSON object in between."""
+        # Replaces newline characters with escaped newline characters
+        text = re.sub(r'\n', r'\\\\n', text)
+        # Extracts JSON, discards extra text
         start = text.find('{')
         end = text.rfind('}')
         """handles case if {} not found"""
@@ -138,9 +135,14 @@ def validate_move(output: dict, board: chess.Board):
             return response_json, None
 
     except ValueError:
-        return None, f"Invalid move format: '{move}'. Please provide a single move only, using the SAN format. Legal moves in SAN: {', '.join(legal_moves_san)}. Re-prompting..."
+        # return None, f"Invalid move format: '{move}'. Please provide a single move only, using the SAN format. Legal moves in SAN: {', '.join(legal_moves_san)}. Re-prompting..."
+        pass
+    return None, f"Illegal move or invalid format provided: '{move}'. Please try again, but select from the set of legal moves, and please ensure you provide a single move only, using the SAN format. Legal moves in SAN: {', '.join(legal_moves_san)}."
 
-    return None, f"Illegal move provided: '{move}'. Please try again, but select from the set of legal moves: {', '.join(legal_moves_san)}."
+
+class ChessMove(BaseModel):
+    thoughts: str = Field(description="Board analysis, thoughts or reasoning steps towards the best move.")
+    move: str = Field(description="Your move, formatted in Standard Algebraic Notation (SAN).")
 
 
 class MistralChat:

@@ -18,12 +18,10 @@ def get_computer_move():
     engine_name = data['engine']
     pprint(f'Engine name: {engine_name}')
 
-    if engine_name == 'stockfish':
+    if 'stockfish' in engine_name:
         move_json = get_stockfish_move(fen)
-    elif engine_name == 'mistral-7b':
-        move_json = get_mistral_move(fen, model='open-mistral-7b')
-    elif engine_name == 'mixtral-8x7b':
-        move_json = get_mistral_move(fen, model='open-mixtral-8x7b')
+    elif 'mistral' or 'mixtral' in engine_name:
+        move_json = get_mistral_move(fen, model=engine_name)
     else:
         logging.error(f'Invalid engine name: {engine_name}')
         move_json = None
