@@ -1,8 +1,8 @@
 import requests
-from chess_repository.llm_chat import LLMChat
+from repository.base_llm import BaseLLM
 
 
-class MistralChat(LLMChat):
+class Mistral(BaseLLM):
     def __init__(self, api_key):
         super().__init__(api_key)
         self.api_url = "https://api.mistral.ai/v1/"

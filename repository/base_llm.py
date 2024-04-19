@@ -1,9 +1,7 @@
-"""an abstract superclass for chatbots"""
 from abc import ABC, abstractmethod
 
 
-class LLMChat(ABC):
-    """An abstract class for chatbots"""
+class BaseLLM(ABC):
 
     @abstractmethod
     def __init__(self, api_key):
@@ -14,10 +12,10 @@ class LLMChat(ABC):
     def get_models(self):
         pass
 
-    def add_message(self, message):
+    def add_message(self, message) -> None:
         self.messages.append(message)
 
-    def get_messages(self):
+    def get_messages(self) -> list:
         return self.messages
 
     def reset_messages(self):
@@ -29,5 +27,5 @@ class LLMChat(ABC):
 
     @classmethod
     @abstractmethod
-    def prompt_template(cls, role: str, message: str) -> dict[str, str]:
+    def prompt_template(cls, role: str, message: str):
         pass

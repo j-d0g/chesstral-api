@@ -2,7 +2,7 @@ import json
 import re
 import chess
 from pprint import pprint
-from chess_service.prompt_generator import role_to_str, generate_prompt
+from service.chess_util.prompt_generator import role_to_str, generate_prompt
 
 
 def system_chess_prompt() -> str:
@@ -25,7 +25,7 @@ def user_chess_prompt(board: chess.Board) -> str:
     """ Returns a content template for Mistral chat."""
 
     role = role_to_str(board)
-    board_str = generate_prompt(board, pgn=False, fen=True, positions=True, legalmoves=True, threats=True)
+    board_str = generate_prompt(board, pgn=False, fen=True, positions=True, legalmoves=True, threats=False)
     json_str = 'Provide your thoughts and move in the correct JSON format: {"thoughts": "Your reasoning-steps here", "move": "Your move in SAN notation"}.'
     prompt = " ".join([role, board_str, json_str])
 

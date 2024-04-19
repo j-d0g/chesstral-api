@@ -1,10 +1,9 @@
 import chess.engine
 from flask import jsonify
-from config import STOCKFISH_PATH
 
 
-def get_stockfish_move(fen):
-    engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
+def get_stockfish_move(fen, stockfish_path):
+    engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
     board = chess.Board(fen)
 
     move = engine.play(board, chess.engine.Limit(time=0.1)).move

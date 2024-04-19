@@ -1,6 +1,6 @@
 import chess
 
-from chess_service.feature_extractor import extract_board_pos, extract_legal_moves, extract_threats
+from service.chess_util.feature_extractor import extract_board_pos, extract_legal_moves, extract_threats
 
 
 def generate_game_prompts(game: chess.pgn.Game,
@@ -167,17 +167,17 @@ def generate_completion(board: chess.Board, pgn_moves: list[list[str]],
 
     # Format board positions string
     if positions:
-        positions_str = positions_to_str(board)
+        positions_str = f'Board Position: {positions_to_str(board)}'
         prompt.append('positions_str')
 
     # Format legal moves string
     if legalmoves:
-        legal_moves_str = legal_to_str(board)
+        legal_moves_str = f'Legal Moves: {legal_to_str(board)}'
         prompt.append('legal_moves_str')
 
     # Format threats string
     if threats:
-        threats_str = threats_to_str(board)
+        threats_str = f'Immediate Threats: {threats_to_str(board)}'
         prompt.append('threats_str')
 
     return "\n\n".join(prompt)
@@ -254,12 +254,12 @@ def legal_to_str(board: chess.Board) -> str:
 def threats_to_str(board: chess.Board) -> str:
     player_threats, enemy_threats = extract_threats(board)
     player_threats_str = '. '.join([
-        f"The {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} threatens to take the "
+        f"The {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} is threatening the "
         f"{threat['defender_color']} {threat['defender_type']} on {threat['defender_square']}: ({threat['san_move']})" for threat in
         player_threats
     ])
     enemy_threats_str = '. '.join([
-        f"The {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} threatens to take the "
+        f"The {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} is threatening the "
         f"{threat['defender_color']} {threat['defender_type']} on {threat['defender_square']}: ({threat['san_move']})" for threat in
         enemy_threats
     ])

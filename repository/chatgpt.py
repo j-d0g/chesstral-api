@@ -1,8 +1,8 @@
 from openai import OpenAI
-from chess_repository.llm_chat import LLMChat
+from repository.base_llm import BaseLLM
 
 
-class ChatGPT(LLMChat):
+class ChatGPT(BaseLLM):
     def __init__(self, api_key):
         super().__init__(api_key)
         self.client = OpenAI(api_key=self.api_key)

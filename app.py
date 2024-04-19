@@ -4,11 +4,15 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import logging
 
-from chess_repository.chatgpt import ChatGPT
-from chess_repository.mistral import MistralChat
-from chess_service.stockfish import get_stockfish_move
-from chess_service.engine import get_llm_move
-from config import MISTRAL_API_KEY, GPT_API_KEY
+from repository.chatgpt import ChatGPT
+from repository.llama import Llama
+from repository.mistral import Mistral
+from service.stockfish import get_stockfish_move
+from service.engine import get_llm_move
+
+from dotenv import load_dotenv
+import os
+
 
 app = Flask(__name__)
 CORS(app)
@@ -19,16 +23,21 @@ def get_computer_move():
     data = request.get_json()
     fen = data['fen']
     engine_name = data['engine']
+
     pprint(f'Engine name: {engine_name}')
 
+    load_dotenv()
     if 'stockfish' in engine_name:
-        move_json = get_stockfish_move(fen)
+        move_json = get_stockfish_move(fen, os.getenv('STOCKFISH_PATH'))
     elif 'gpt' in engine_name:
         print("APP->GPT")
-        gpt = ChatGPT(GPT_API_KEY)
+        gpt = ChatGPT(os.getenv('GPT_API_KEY'))
         move_json = get_llm_move(fen, gpt, engine_name)
+    elif 'meta' in engine_name:
+        llama = Llama(os.getenv('REPLICATE_API_KEY'))
+        move_json = get_llm_move(fen, llama, engine_name)
     elif 'mistral' or 'mixtral' in engine_name:
-        mistral = MistralChat(MISTRAL_API_KEY)
+        mistral = Mistral(os.getenv('MISTRAL_API_KEY'))
         move_json = get_llm_move(fen, mistral, engine_name)
     else:
         logging.error(f'Invalid engine name: {engine_name}')
