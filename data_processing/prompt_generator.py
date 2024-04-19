@@ -229,7 +229,7 @@ def role_to_str(board: chess.Board) -> str:
     move = board.fullmove_number
     player_turn = 'white' if board.turn is chess.WHITE else 'black'
 
-    role_task_str = f'It is move {move} of a chess game. You are {player_turn}. Your task is to list out your thoughts and reasoning steps BEFORE returning the best chess move given your position. You should make use the information provideddescribing the board-state and your knowledge of chess terminology. The queen is the most valuable piece after the king, followed by the rook. The bishop and knight are the same value, but less valuable than the rook. Pawns are the least valuable. Please think carefully.'
+    role_task_str = f'It is move {move} of a chess game. You are {player_turn}. Your task is to think and reason about the chess-board step-by-step BEFORE returning the best chess move given a board-position. Use any information describing the board-state as well as your knowledge of chess terminology to reason about finding a good move. The queen is the most valuable piece after the king, followed by the rook. The bishop and knight are the same value, but less valuable than the rook. Pawns are the least valuable. When a lower-valued piece is threatening a higher-valued piece, it is generally wise to take it. Please think carefully.'
     return role_task_str
 
 
@@ -245,7 +245,7 @@ def positions_to_str(board: chess.Board) -> str:
 def legal_to_str(board: chess.Board) -> str:
     legal_moves = extract_legal_moves(board)
     legal_moves_str = '. '.join([
-        f"The {move['piece_color']} {move['piece_type']} on {move['start_square']} can legally move to {move['end_square']}"
+        f"The {move['piece_color']} {move['piece_type']} on {move['start_square']} can legally move to {move['end_square']}: ({move['move_san']})"
         for move in legal_moves
     ]) + '.'
     return legal_moves_str
@@ -254,16 +254,16 @@ def legal_to_str(board: chess.Board) -> str:
 def threats_to_str(board: chess.Board) -> str:
     player_threats, enemy_threats = extract_threats(board)
     player_threats_str = '. '.join([
-        f"The {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} is attacking the "
-        f"{threat['defender_color']} {threat['defender_type']} on {threat['defender_square']}" for threat in
+        f"Your {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} threatens to take my "
+        f"{threat['defender_color']} {threat['defender_type']} on {threat['defender_square']}: ({threat['san_move']})" for threat in
         player_threats
     ])
     enemy_threats_str = '. '.join([
-        f"The {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} is attacking the "
-        f"{threat['defender_color']} {threat['defender_type']} on {threat['defender_square']}" for threat in
+        f"My {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} threatens to take your "
+        f"{threat['defender_color']} {threat['defender_type']} on {threat['defender_square']}: ({threat['san_move']})" for threat in
         enemy_threats
     ])
-    threats = '. '.join([player_threats_str, enemy_threats_str])
+    threats = '. '.join([enemy_threats_str, player_threats_str])
     return threats
 
 

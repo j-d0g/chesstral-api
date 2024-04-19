@@ -156,7 +156,8 @@ def extract_legal_moves(board: chess.Board) -> list[dict]:
             "piece_color": piece_color,
             "piece_type": piece_type,
             "start_square": chess.square_name(start_square),
-            "end_square": chess.square_name(end_square)
+            "end_square": chess.square_name(end_square),
+            "move_san": board.san(move)
         }
         moves_details.append(move_detail)
 
@@ -191,7 +192,8 @@ def extract_threats(board: chess.Board):
                         "attacker_square": chess.square_name(attacker_square),  # Corrected to attacker's square
                         "defender_color": "white" if piece.color else "black",
                         "defender_type": chess.piece_name(piece.piece_type),
-                        "defender_square": chess.square_name(square)
+                        "defender_square": chess.square_name(square),
+                        "san_move": board.san(chess.Move(attacker_square, square))
                     }
                     if piece.color == board.turn:
                         enemy_threats.append(threat_detail)
