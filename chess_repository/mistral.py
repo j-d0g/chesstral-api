@@ -1,22 +1,15 @@
 import requests
+from chess_repository.llm_chat import LLMChat
 
 
-def prompt_template(role: str, message: str) -> dict[str, str]:
-    return {
-        "role": role,
-        "content": f"[INST] {message} [/INST]"
-    }
-
-
-class MistralChat:
+class MistralChat(LLMChat):
     def __init__(self, api_key):
-        self.api_key = api_key
+        super().__init__(api_key)
         self.api_url = "https://api.mistral.ai/v1/"
         self.headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
-        self.messages = []
 
     def get_models(self):
         response = requests.get(self.api_url + "models", headers=self.headers)
@@ -26,21 +19,12 @@ class MistralChat:
             print(f"Error: {response.status_code} - {response.text}")
             return None
 
-    def add_message(self, message):
-        self.messages.append(message)
-
-    def get_messages(self):
-        return self.messages
-
-    def reset_messages(self):
-        self.messages = []
-
-    def generate_text(self, model_name="open-mistral-7b", max_tokens=1024, temperature=0.9):
+    def generate_text(self, model_name="open-mistral-7b", max_tokens=1024, temperature=0.9, top_p=0.95) -> str:
         data = {
             "model": model_name,
             "messages": self.get_messages(),
             "temperature": temperature,
-            "top_p": 0.7,
+            "top_p": top_p,
             "max_tokens": max_tokens,
             "stream": False,
             "safe_prompt": False,
@@ -51,8 +35,15 @@ class MistralChat:
 
         if response.status_code == 200:
             result = response.json()
-            generated_text = result["choices"][0]["message"]
+            generated_text = result["choices"][0]["message"]["content"]
             return generated_text
         else:
             print(f"Error: {response.status_code} - {response.text}")
             return None
+
+    @classmethod
+    def prompt_template(cls, role: str, message: str) -> dict[str, str]:
+        return {
+            "role": role,
+            "content": f"[INST] {message} [/INST]"
+        }

@@ -1,6 +1,6 @@
 import chess
 
-from data_processing.feature_extractor import extract_board_pos, extract_legal_moves, extract_threats
+from chess_service.feature_extractor import extract_board_pos, extract_legal_moves, extract_threats
 
 
 def generate_game_prompts(game: chess.pgn.Game,
@@ -254,12 +254,12 @@ def legal_to_str(board: chess.Board) -> str:
 def threats_to_str(board: chess.Board) -> str:
     player_threats, enemy_threats = extract_threats(board)
     player_threats_str = '. '.join([
-        f"Your {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} threatens to take my "
+        f"The {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} threatens to take the "
         f"{threat['defender_color']} {threat['defender_type']} on {threat['defender_square']}: ({threat['san_move']})" for threat in
         player_threats
     ])
     enemy_threats_str = '. '.join([
-        f"My {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} threatens to take your "
+        f"The {threat['attacker_color']} {threat['attacker_type']} on {threat['attacker_square']} threatens to take the "
         f"{threat['defender_color']} {threat['defender_type']} on {threat['defender_square']}: ({threat['san_move']})" for threat in
         enemy_threats
     ])
