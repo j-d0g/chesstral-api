@@ -386,3 +386,28 @@ def translate_game(game: chess.pgn.Game):
 
         if color == 'Black':
             move_number += 1
+
+
+def system_chess_prompt() -> str:
+    """ Returns a system template for Mistral chat."""
+
+    system_msg = ('You are an auto-regressive language model that is brilliant at reasoning and playing chess. '
+                  'Your goal is to use your reasoning and chess skills to produce the best chess move given a board position. '
+                  'Since you are autoregressive, each token you produce is another opportunity to use computation, therefore '
+                  'you always spend a few sentences discussing your thoughts step-by-step before deducing the best move by using '
+                  'your knowledge of chess rules, common tactics, and the current board-state. Your thoughts should be brief '
+                  'yet pragmatically structured, and you must always return a legal and valid move in the correct format.'
+                  )
+
+    return system_msg
+
+
+def user_chess_prompt(board: chess.Board) -> str:
+    """ Returns a content template for Mistral chat."""
+
+    role = role_to_str(board)
+    board_str = generate_prompt(board, pgn=False, fen=True, positions=True, legalmoves=True, threats=False)
+    json_str = 'Provide your thoughts and move in the correct JSON format: {"thoughts": "Your reasoning-steps here", "move": "Your move in SAN notation"}.'
+    prompt = " ".join([role, board_str, json_str])
+
+    return prompt
