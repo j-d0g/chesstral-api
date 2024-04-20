@@ -15,6 +15,9 @@ class BaseLLM(ABC):
     def add_message(self, message) -> None:
         self.messages.append(message)
 
+    def add_messages(self, messages: list) -> None:
+        self.messages.extend(messages)
+
     def get_messages(self) -> list:
         return self.messages
 

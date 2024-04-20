@@ -5,46 +5,54 @@ from pprint import pprint
 from service.chess_util.prompt_generator import system_chess_prompt, user_chess_prompt
 
 
-def get_llm_move(fen: str, llm, model_name: str = None, max_retries: int = 15):
+def get_llm_move(pgn_moves: list[str], fen: str, llm, model_name: str = None, max_retries: int = 15):
     """
     Generates a chess move using the Mistral API.
-    :param fen: FEN string representing the current board state
+    :param pgn_moves: list of moves in SAN string format
+    :param board: board object representing the current board state
     :param llm: Language model instance
     :param model_name: Name of the language model to use (optional)
     :param max_retries: Maximum number of retries before giving up (default: 15)
     :return: JSON object containing the move and thoughts, or an error message
     """
+    # Initialise board using FEN, and push the user's last move
     board = chess.Board(fen)
-    llm.add_message(llm.prompt_template("system", system_chess_prompt()))
-    llm.add_message(llm.prompt_template("user", user_chess_prompt(board)))
+    board.push_san(pgn_moves[-1])
+    print(pgn_moves)
+
+    # Early Exit if Checkmate
+    if board.is_checkmate():
+        return {"thoughts": 'Checkmate!', "move": '#'}
+
+    # Generate system and user prompt from templates, add to LLM messages
+    sys = llm.prompt_template("system", system_chess_prompt())
+    user = llm.prompt_template("user", user_chess_prompt(board, pgn_moves))
+    llm.add_messages([sys, user])
 
     print('****** INPUT ******\n ')
     pprint(llm.get_messages())
 
+    # HANDLE GENERATION & RETRIES
     for retry in range(max_retries):
+
+        # Generate move, thoughts JSON using LLM
         output: str = llm.generate_text(model_name=model_name)
-
-        print('****** RAW OUTPUT ********\n ')
-        pprint(output)
-
         response_json, error_message = validate_response(output, board)
-        llm.add_message(llm.prompt_template("assistant", output))
 
+        # If response is valid, return the JSON object
         if response_json:
             return response_json
 
-        print('****** ERROR MESSAGE ******\n ')
-        pprint(error_message)
-
+        # Reset conversation history to remove bad responses
         if retry % 5 == 0:
             llm.reset_messages()
 
-        regenerate_message = f"{error_message}. Previous prompt: '''{user_chess_prompt(board)}'''"
+        # Else, reprompt the user with the error-reprompt message
+        regenerate_message = f"{error_message}. Previous prompt: '''{user_chess_prompt(board, pgn_moves)}'''"
+        llm.add_message(llm.prompt_template("assistant", output))
         llm.add_message(llm.prompt_template("user", regenerate_message))
 
-        print('****** CONVERSATION HISTORY ******\n ')
-        [pprint(message) for message in llm.get_messages()]
-
+    # Return error message if maximum retries exceeded
     return {'error': 'Exceeded maximum retries'}
 
 
@@ -56,33 +64,31 @@ def validate_response(output: str, board: chess.Board):
     :return: Tuple containing the response JSON (move and thoughts) and an error message (if any)
     """
     legal_moves: list[chess.Move] = list(board.legal_moves)
-    extracted_json_str: str = extract_json(output)
-
-    print("****** EXTRACTED JSON STRING ******\n")
-    pprint(extracted_json_str)
+    cleaned_json: str = clean_json(output)
 
     # Handle JSON Validation
     try:
-        response_json: dict = json.loads(extracted_json_str)
+        response_json: dict = json.loads(cleaned_json)
         san_move: str = response_json['move']
     except (json.JSONDecodeError, KeyError, TypeError) as e:
-        return handle_json_error(e, extracted_json_str)
+        return handle_json_error(e, cleaned_json)
 
     print("****** RESPONSE JSON ******\n")
     pprint(response_json)
 
     # Handle Move Validation
     try:
+        san_move = san_move.replace(' ', '')
         chess_move: chess.Move = board.parse_san(san_move)
         if chess_move in legal_moves:
             return response_json, None
-    except (chess.AmbiguousMoveError, chess.InvalidMoveError, chess.IllegalMoveError) as e:
+    except Exception as e:
         return handle_move_error(e, san_move, board)
 
 
-def extract_json(text: str) -> str:
+def clean_json(text: str) -> str:
     """
-    Extracts a JSON object from a given text string.
+    Cleans the text into a more readable JSON string, removing excess characters that interfere with parsing json/move.
     :param text: Input text string
     :return: Extracted JSON string, or the original text if no JSON is found
     """
@@ -92,26 +98,24 @@ def extract_json(text: str) -> str:
     return text[start:end + 1] if start != -1 and end != -1 else text
 
 
-def handle_json_error(error, extracted_json_str):
+def handle_json_error(error: Exception, json_str: str):
     """
-    Handles different types of JSON errors and returns appropriate error messages.
+    Returns error-specific prompts to regenerate response for JSON errors.
     :param error: The exception object representing the JSON error
-    :param extracted_json_str: Extracted JSON string from the API response
+    :param json_str: Response JSON string
     :return: Tuple containing None and the corresponding error message
     """
     if isinstance(error, json.JSONDecodeError):
-        return None, f'Invalid JSON response: """{extracted_json_str}""" is not a valid JSON object. Regenerate your response, providing your thoughts and move in the correct JSON format: {{"thoughts": "Your reasoning-steps here", "move": "Your move in SAN notation"}}.'
+        return None, f'Invalid JSON response: """{json_str}""" is not a valid JSON object. Regenerate your response, providing your thoughts and move in the correct JSON format: {{"thoughts": "Your reasoning-steps here", "move": "Your move in SAN notation"}}.'
     elif isinstance(error, (KeyError, TypeError)):
-        return None, f'Invalid JSON response: """{extracted_json_str}""" is missing the "move" key. Regenerate your response, providing the move key in the correct JSON format: {{"thoughts": "Your reasoning-steps here", "move": "Your move in SAN notation"}}.'
+        return None, f'Invalid JSON response: """{json_str}""" is missing the "move" key. Regenerate your response, providing the move key in the correct JSON format: {{"thoughts": "Your reasoning-steps here", "move": "Your move in SAN notation"}}.'
 
 
 def handle_move_error(error, move, board):
     """
-    Handles different types of move errors and returns appropriate error messages.
+    Returns error-specific prompts to regenerate response for chess-move errors.
     :param error: The exception object representing the move error
     :param move: The move that caused the error
-    :param legal_moves_san: List of legal moves in SAN format
-    :param legal_moves_uci: List of legal moves in UCI format
     :param board: Current chess board state
     :return: Tuple containing None and the corresponding error message
     """
@@ -125,7 +129,7 @@ def handle_move_error(error, move, board):
         return None, f"Ambiguous move: '{move}'. Regenerate your response to my last prompt, but this time using either long-SAN by specifying the file of the origin piece (i.e Nhg8 instead of Ng8), or UCI format (i.e f6g8). Legal UCI moves: '''{', '.join(legal_moves_uci)}'''."
     elif isinstance(error, chess.InvalidMoveError):
         try:
-            uci_move: str = re.sub(r'[-+#nqrkNQRBK\s]', '', move)
+            uci_move: str = re.sub(r'[-+#nqrkNQRBK]', '', move)
             uci_move: chess.Move = chess.Move.from_uci(uci_move)
             if uci_move in legal_moves:
                 return {'move': board.san(uci_move)}, None
@@ -133,3 +137,20 @@ def handle_move_error(error, move, board):
                 return None, f"Illegal move: '{uci_move}'. Regenerate your response to my last prompt, but this time provide a single, legal move in SAN format. Legal SAN moves: '''{', '.join(legal_moves_san)}'''."
         except (ValueError, chess.InvalidMoveError):
             return None, f"Invalid move format: '{move}'. Regenerate your response to my last prompt, but this time provide a single, legal move using either SAN-format or UCI-format. Legal SAN moves: '''{', '.join(legal_moves_san)}'''."
+    else:
+        return None, f'Invalid move: {move}. Regenerate your response but choose a valid SAN move: {legal_moves_san}.'
+
+
+def extract_san(fen, last_move):
+    """
+    Pushes the last move to the board and extracts the SAN move.
+
+    :param fen:
+    :param last_move:
+    :return:
+    """
+    uci_move = last_move['from'] + last_move['to']
+    chess_move = chess.Move.from_uci(uci_move)
+    board = chess.Board(fen)
+
+    return board.san(chess_move)

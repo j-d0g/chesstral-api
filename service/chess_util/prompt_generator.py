@@ -63,9 +63,7 @@ def generate_move_prompts(game: chess.pgn.Game,
             prompts.append(
                 generate_prompt(board, pgn_moves, pgn=pgn, fen=fen, positions=positions, legalmoves=legalmoves,
                                 threats=threats))
-        if board.turn == chess.WHITE:
-            pgn_moves.append([])
-        pgn_moves[-1].append(board.san(move))
+        pgn_moves.append(board.san(move))
         board.push(move)
         move_counter += 1
 
@@ -73,11 +71,6 @@ def generate_move_prompts(game: chess.pgn.Game,
             break
 
     return prompts
-
-
-def func(game: chess.pgn.Game = None):
-    pass
-
 
 def generate_prompt(board: chess.Board,
                     pgn=True,
@@ -101,9 +94,8 @@ def generate_prompt(board: chess.Board,
 
     # Format pgn string
     if pgn:
-        pgn_str = 'PGN: ' + ' '.join(
-            [f"{index + 1}. {' '.join(moves)}" for index, moves in enumerate(pgn_moves)]).strip()
-        prompt.append('pgn_str')
+        pgn_str = pgn_to_str(pgn_moves)
+        prompt.append(pgn_str)
 
     # Format FEN string
     if fen:
@@ -128,101 +120,14 @@ def generate_prompt(board: chess.Board,
     return "\n".join(prompt)
 
 
-def generate_completion(board: chess.Board, pgn_moves: list[list[str]],
-                        thoughts,
-                        pgn,
-                        fen,
-                        positions,
-                        legalmoves,
-                        threats
-                        ) -> str:
-    """
-    Extracts and formats the game state into a prompt for the LLM.
-
-    :param board: a chess.Board object representing the current board position
-    :param pgn_moves: the output string of chess moves in pgn format
-
-    :return prompts: list of str prompts
-
-    """
-
-    prompt = []
-    completion = """" thoughts:  """
-
-    # Format pgn string
-    if thoughts:
-        thoughts_str = 'Thoughts: ' + ' '.join(
-            [f"{index + 1}. {' '.join(moves)}" for index, moves in enumerate(pgn_moves)]).strip()
-        prompt.append('thoughts_str')
-
-    if pgn:
-        pgn_str = 'PGN: ' + ' '.join(
-            [f"{index + 1}. {' '.join(moves)}" for index, moves in enumerate(pgn_moves)]).strip()
-        prompt.append('pgn_str')
-
-    # Format FEN string
-    if fen:
-        fen_str = f'FEN: {board.fen()}'
-        prompt.append('fen_str')
-
-    # Format board positions string
-    if positions:
-        positions_str = f'Board Position: {positions_to_str(board)}'
-        prompt.append('positions_str')
-
-    # Format legal moves string
-    if legalmoves:
-        legal_moves_str = f'Legal Moves: {legal_to_str(board)}'
-        prompt.append('legal_moves_str')
-
-    # Format threats string
-    if threats:
-        threats_str = f'Immediate Threats: {threats_to_str(board)}'
-        prompt.append('threats_str')
-
-    return "\n\n".join(prompt)
-
-
-def generate_role(board: chess.Board, pgn=False, fen=False, b_pos=False, legal=False, threats=False, move=False) -> str:
-    # Format task/role string
-    role = []
-    if move:
-        role_task_str = role_to_str(board)
-        role.append('role_task_str')
-
-    return "\n\n".join(role)
-
-
-def get_board_positions_and_moves(game: chess.pgn.Game, start_move: int, end_move: int) -> tuple[
-    list[str], list[list[str]]]:
-    """
-    Generates a list of board positions and a corresponding list of moves from a given game,
-    starting from the specified move number and ending at the specified move number.
-    """
-    board = game.board()
-    moves = list(game.mainline_moves())
-    board_positions = []
-    move_pairs = []
-
-    # Skip to the starting move
-    for _ in range(start_move):
-        if moves:
-            board.push(moves.pop(0))
-
-    # Iterate through the moves from start_move to end_move
-    for move_number in range(start_move, end_move):
-        if moves:
-            move = moves.pop(0)
-            board_positions.append(board.fen())
-            if board.turn == chess.WHITE:
-                move_pairs.append([])
-            move_pairs[-1].append(board.san(move))
-            board.push(move)
-
-    # Add the final position
-    board_positions.append(board.fen())
-
-    return board_positions, move_pairs
+def pgn_to_str(pgn_moves: list[str]) -> str:
+    pgn_str = 'PGN: '
+    for index in range(0, len(pgn_moves), 2):
+        if index + 1 < len(pgn_moves):
+            pgn_str += f"{index // 2 + 1}. {pgn_moves[index]} {pgn_moves[index + 1]} "
+        else:
+            pgn_str += f"{index // 2 + 1}. {pgn_moves[index]}"
+    return pgn_str.strip()
 
 
 def role_to_str(board: chess.Board) -> str:
@@ -391,23 +296,26 @@ def translate_game(game: chess.pgn.Game):
 def system_chess_prompt() -> str:
     """ Returns a system template for Mistral chat."""
 
-    system_msg = ('You are an auto-regressive language model that is brilliant at reasoning and playing chess. '
+    system_msg = ('You are an auto-regressive language model that is brilliant at reasoning and playing chess at a grandmaster-level. '
                   'Your goal is to use your reasoning and chess skills to produce the best chess move given a board position. '
                   'Since you are autoregressive, each token you produce is another opportunity to use computation, therefore '
-                  'you always spend a few sentences discussing your thoughts step-by-step before deducing the best move by using '
-                  'your knowledge of chess rules, common tactics, and the current board-state. Your thoughts should be brief '
-                  'yet pragmatically structured, and you must always return a legal and valid move in the correct format.'
+                  'you always spend a few sentences first analysing the most recent move, before discussing your step-by-step thought '
+                  'process to deduce the best move. Use your knowledge of chess rules, strategy, tactics, and the current board-state. '
+                  'Your thoughts should be brief, but clear and pragmatic. It is vital that you always return a move that is both '
+                  'legal given the board position, and formatted correctly given the notation specified (SAN).'
                   )
+
+    # system_msg = "You are a chess grandmaster and your goal is to win in as few moves as possible. I will give you the move sequence with information about the board-state, then you will comment on my last move before, before applying step-by-step reasoning to choose the best possible move to return."
 
     return system_msg
 
 
-def user_chess_prompt(board: chess.Board) -> str:
+def user_chess_prompt(board: chess.Board, pgn_moves: list[str]) -> str:
     """ Returns a content template for Mistral chat."""
 
     role = role_to_str(board)
-    board_str = generate_prompt(board, pgn=False, fen=True, positions=True, legalmoves=True, threats=False)
     json_str = 'Provide your thoughts and move in the correct JSON format: {"thoughts": "Your reasoning-steps here", "move": "Your move in SAN notation"}.'
-    prompt = " ".join([role, board_str, json_str])
+    board_str = generate_prompt(board, pgn=True, fen=True, positions=True, legalmoves=True, threats=True, pgn_moves=pgn_moves)
+    prompt = " ".join([role, json_str, board_str])
 
     return prompt
