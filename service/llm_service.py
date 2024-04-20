@@ -82,6 +82,8 @@ def validate_response(output: str, board: chess.Board):
         chess_move: chess.Move = board.parse_san(san_move)
         if chess_move in legal_moves:
             return response_json, None
+        else:
+            raise chess.IllegalMoveError
     except Exception as e:
         return handle_move_error(e, san_move, board)
 
@@ -129,6 +131,7 @@ def handle_move_error(error, move, board):
         return None, f"Ambiguous move: '{move}'. Regenerate your response to my last prompt, but this time using either long-SAN by specifying the file of the origin piece (i.e Nhg8 instead of Ng8), or UCI format (i.e f6g8). Legal UCI moves: '''{', '.join(legal_moves_uci)}'''."
     elif isinstance(error, chess.InvalidMoveError):
         try:
+            # If move was an invalid SAN format, attempt to clean and convert from UCI format
             uci_move: str = re.sub(r'[-+#nqrkNQRBK]', '', move)
             uci_move: chess.Move = chess.Move.from_uci(uci_move)
             if uci_move in legal_moves:
