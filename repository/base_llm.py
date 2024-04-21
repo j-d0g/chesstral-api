@@ -4,8 +4,7 @@ from abc import ABC, abstractmethod
 class BaseLLM(ABC):
 
     @abstractmethod
-    def __init__(self, api_key):
-        self.api_key = api_key
+    def __init__(self):
         self.messages = []
 
     @abstractmethod

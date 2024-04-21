@@ -310,12 +310,13 @@ def system_chess_prompt() -> str:
     return system_msg
 
 
-def user_chess_prompt(board: chess.Board, pgn_moves: list[str]) -> str:
+def user_chess_prompt(board: chess.Board, pgn_moves: list[str], f='pf') -> str:
     """ Returns a content template for Mistral chat."""
 
     role = role_to_str(board)
     json_str = 'Provide your thoughts and move in the correct JSON format: {"thoughts": "Your reasoning-steps here", "move": "Your move in SAN notation"}.'
-    board_str = generate_prompt(board, pgn=True, fen=True, positions=True, legalmoves=True, threats=True, pgn_moves=pgn_moves)
+    board_str = generate_prompt(board, pgn=('p' in f), fen=('f' in f), positions=('b' in f), legalmoves=('l' in f), threats=('t' in f),
+                                pgn_moves=pgn_moves)
     prompt = " ".join([role, json_str, board_str])
 
     return prompt

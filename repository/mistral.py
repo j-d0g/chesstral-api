@@ -4,11 +4,11 @@ from repository.base_llm import BaseLLM
 
 class Mistral(BaseLLM):
     def __init__(self, api_key):
-        super().__init__(api_key)
+        super().__init__()
         self.api_url = "https://api.mistral.ai/v1/"
         self.headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
+            "Authorization": f"Bearer {api_key}"
         }
 
     def get_models(self):

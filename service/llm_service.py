@@ -2,23 +2,65 @@ import json
 import re
 import chess
 from pprint import pprint
+
+from repository.base_llm import BaseLLM
 from service.chess_util.prompt_generator import system_chess_prompt, user_chess_prompt
 
 
-def get_llm_move(pgn_moves: list[str], fen: str, llm, model_name: str = None, max_retries: int = 15):
+def extract_benchmarks(prompt: str, response_json: dict, feature_flag: str, fen: str, pgn_moves: list, reprompt_counts: dict) -> dict:
+    benchmarks = {
+        "input_features": {
+            "pgn": 'p' in feature_flag,
+            "fen": 'f' in feature_flag,
+            "board": 'b' in feature_flag,
+            "legal": 'l' in feature_flag,
+            "threats": 't' in feature_flag,
+            "prompt": prompt
+        },
+        "completion": response_json,
+        "re-prompts": reprompt_counts,
+        "board-info": {
+            "move_num": len(pgn_moves),
+            "fen": fen,
+            "pgn": pgn_moves,
+        }
+    }
+
+    return benchmarks
+
+
+def persist_benchmarks(benchmarks: dict)-> None:
+    """
+    Persists the benchmarks to a JSON file.
+    :param benchmarks:
+    :return: None
+    """
+    with open("self_play_data.json", "a") as file:
+        json.dump(benchmarks, file)
+        file.write("\n")
+
+
+def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, feature_flags: str, max_retries: int = 15) -> dict:
     """
     Generates a chess move using the Mistral API.
+    :param feature_flags: list of booleans corresponding to what features to include in the prompt
     :param pgn_moves: list of moves in SAN string format
-    :param board: board object representing the current board state
+    :param fen: string representing the current board state
     :param llm: Language model instance
     :param model_name: Name of the language model to use (optional)
     :param max_retries: Maximum number of retries before giving up (default: 15)
     :return: JSON object containing the move and thoughts, or an error message
     """
+    # Initialise Prompt-Counter
+    reprompt_counter = {
+        "illegal_move": 0,
+        "invalid_move_format": 0,
+        "invalid_json_format": 0,
+    }
+
     # Initialise board using FEN, and push the user's last move
     board = chess.Board(fen)
     board.push_san(pgn_moves[-1])
-    print(pgn_moves)
 
     # Early Exit if Checkmate
     if board.is_checkmate():
@@ -26,7 +68,7 @@ def get_llm_move(pgn_moves: list[str], fen: str, llm, model_name: str = None, ma
 
     # Generate system and user prompt from templates, add to LLM messages
     sys = llm.prompt_template("system", system_chess_prompt())
-    user = llm.prompt_template("user", user_chess_prompt(board, pgn_moves))
+    user = llm.prompt_template("user", user_chess_prompt(board, pgn_moves, feature_flags))
     llm.add_messages([sys, user])
 
     print('****** INPUT ******\n ')
@@ -35,22 +77,40 @@ def get_llm_move(pgn_moves: list[str], fen: str, llm, model_name: str = None, ma
     # HANDLE GENERATION & RETRIES
     for retry in range(max_retries):
 
+        # If reached 5 consecutive retries, reset conversation context and start again
+        if (retry + 1) % 5 == 0:
+            llm.reset_messages()
+            llm.add_messages([sys, user])
+
         # Generate move, thoughts JSON using LLM
         output: str = llm.generate_text(model_name=model_name)
         response_json, error_message = validate_response(output, board)
 
-        # If response is valid, return the JSON object
+        # If response is valid, extract and generate benchmark metrics and return response
         if response_json:
-            return response_json
+            benchmarks = extract_benchmarks(
+                user, 
+                response_json, 
+                feature_flags, 
+                fen, 
+                pgn_moves, 
+                reprompt_counter
+            )
+            persist_benchmarks(benchmarks)
+            return benchmarks
 
-        # Reset conversation history to remove bad responses
-        if retry % 5 == 0:
-            llm.reset_messages()
-
-        # Else, reprompt the user with the error-reprompt message
-        regenerate_message = f"{error_message}. Previous prompt: '''{user_chess_prompt(board, pgn_moves)}'''"
+        # Else if error, re-prompt the user with the error-reprompt message
+        regenerate_message = f"{error_message}. Previous prompt: '''{user_chess_prompt(board, pgn_moves, feature_flags)}'''"
         llm.add_message(llm.prompt_template("assistant", output))
         llm.add_message(llm.prompt_template("user", regenerate_message))
+
+        # Increment the corresponding re-prompt counter
+        if "Illegal move" in error_message:
+            reprompt_counter["illegal_move"] += 1
+        elif "Invalid move format" in error_message:
+            reprompt_counter["invalid_move_format"] += 1
+        elif "Invalid JSON response" in error_message:
+            reprompt_counter["invalid_json_format"] += 1
 
     # Return error message if maximum retries exceeded
     return {'error': 'Exceeded maximum retries'}
@@ -81,6 +141,8 @@ def validate_response(output: str, board: chess.Board):
         san_move = san_move.replace(' ', '')
         chess_move: chess.Move = board.parse_san(san_move)
         if chess_move in legal_moves:
+            # Update response JSON with the cleaned SAN move
+            response_json['move'] = san_move
             return response_json, None
         else:
             raise chess.IllegalMoveError

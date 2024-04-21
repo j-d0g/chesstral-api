@@ -3,9 +3,11 @@ from flask_cors import CORS
 import logging
 
 from repository.chatgpt import ChatGPT
+from repository.claude import Claude
+from repository.llama import Llama
 from repository.mistral import Mistral
 from service.stockfish_service import get_stockfish_move
-from service.llm_service import get_llm_move, extract_san
+from service.llm_service import generate_move, extract_san
 
 from dotenv import load_dotenv
 import os
@@ -29,15 +31,19 @@ class ChessLLMResource:
             return get_stockfish_move(fen, os.getenv('STOCKFISH_PATH'))
         elif 'gpt' in engine_name:
             llm = ChatGPT(os.getenv('GPT_API_KEY'))
-        elif 'mistral' or 'mixtral' in engine_name:
+        elif 'mistral' in engine_name or 'mixtral' in engine_name:
             llm = Mistral(os.getenv('MISTRAL_API_KEY'))
+        elif 'llama' in engine_name:
+            llm = Llama(os.getenv('REPLICATE_API_KEY'))
+        elif 'claude' in engine_name:
+            llm = Claude(os.getenv('ANTHROPIC_API_KEY'))
         else:
             logging.error(f'Engine not yet supported: {engine_name}')
             return None
 
         # add pgn_moves list to response before returning
 
-        return jsonify(get_llm_move(self.pgn_moves, fen, llm, engine_name))
+        return jsonify(generate_move(self.pgn_moves, fen, llm, engine_name, 'pfblt')['completion'])
 
     def reset_game(self):
         self.pgn_moves = []
