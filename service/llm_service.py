@@ -83,13 +83,11 @@ def validate_response(output: str, board: chess.Board):
         return handle_json_error(e, cleaned_json)
     # Validate Move
     try:
+        san_move = san_move[san_move.find('.') + 1:]
         san_move = san_move.replace(' ', '')
         chess_move: chess.Move = board.parse_san(san_move)
         if chess_move in legal_moves:
-            response_json['move'] = san_move
-            print(chess_move)
-            print(legal_moves)
-            print(san_move)
+            response_json['move'] = board.san(chess_move)
             return response_json, None
         else:
             raise chess.IllegalMoveError
@@ -199,11 +197,9 @@ def handle_move_error(error, move, board):
             uci_move: str = re.sub(r'[-+#nqrkNQRBK]', '', move)
             uci_move: chess.Move = chess.Move.from_uci(uci_move)
             if uci_move in legal_moves:
-                print(uci_move)
-                print(board.san(uci_move))
                 return {'move': board.san(uci_move), 'thoughts': 'higgidy diggidy'}, None
             else:
-                return None, f"Illegal move: '{uci_move}'. Regenerate your response to my last prompt, but this time provide a single, legal move in SAN format. Legal SAN moves: '''{', '.join(legal_moves_san)}'''."
+                return None, f"Illegal move: '{move}'. Regenerate your response to my last prompt, but this time provide a single, legal move in SAN format. Legal SAN moves: '''{', '.join(legal_moves_san)}'''."
         except (ValueError, chess.InvalidMoveError):
             return None, f"Invalid move format: '{move}'. Regenerate your response to my last prompt, but this time provide a single, legal move using either SAN-format or UCI-format. Legal SAN moves: '''{', '.join(legal_moves_san)}'''."
     else:
