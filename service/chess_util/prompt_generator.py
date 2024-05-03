@@ -299,6 +299,7 @@ def translate_game(game: chess.pgn.Game):
 def system_chess_prompt() -> str:
     """ Returns a system template for Mistral chat."""
 
+    # Original with PF-BLT
     system_msg = (
         'You are an auto-regressive language model that is brilliant at reasoning and playing chess at a grandmaster-level. '
         'Your goal is to use your reasoning and chess skills to produce the best chess move given a board position. '
@@ -307,20 +308,15 @@ def system_chess_prompt() -> str:
         'process to deduce the best move. Use your knowledge of chess rules, strategy, tactics, and the current board-state. '
         'Your thoughts should be concise and clearly structured. It is vital that you always return a move that is both '
         'legal given the board position, and formatted correctly given the notation specified (SAN).'
-        )
-
-    system_msg = (
-        "You are a chess coach playing as black and your goal is to win in as few moves as possible. Before making a move, you will first "
-        "make a qualitative comment on my last move, followed by a series of thought-steps towards choosing your next move."
-        "You should respond as if you were teaching a student how to play chess, explaining your reasoning and strategy."
-        "I will give you the move sequence, and you will return your next move."
     )
 
+    # Original shortened
     system_msg = ('You are an auto-regressive language model that is brilliant at complex reasoning.'
                   'Since you are autoregressive, each token you produce is another opportunity to use computation, therefore '
                   'you always spend a few sentences analysing the problem step-by-step before giving an answer.'
                   )
 
+    # Best Performance with Thoughts
     system_msg = (
         "You are a chess coach playing as black and your goal is to win in as few moves as possible. Before making a move, you will first "
         "make a qualitative comment on my last move, followed by a series of thought-steps towards choosing your next move. "
@@ -328,29 +324,18 @@ def system_chess_prompt() -> str:
         "I will give you the move sequence, and you will return your next move. "
     )
 
-    system_msg = (
+    # Best Performance on Mistral-7B
+    best = (
         "You are a chess grandmaster playing as black and your goal is to win in as few moves as possible."
         "I will give you the move sequence, and you will return your next move. Return your move as a JSON object with the following format: 'move': 'Your move in SAN notation'."
     )
 
-    # system_msg = "You are a chess grandmaster and your goal is to win in as few moves as possible. I will give you the move sequence with information about the board-state, then you will comment on my last move before, before applying step-by-step reasoning to choose the best possible move to return."
-
-    return system_msg
+    return best
 
 
-def user_chess_prompt(board: chess.Board, pgn_moves: list[str], features_option='pfbl', role_option=0,
-                      schema_option=0) -> str:
+def user_chess_prompt(board: chess.Board, pgn_moves: list[str], features_option, schema_option=0) -> str:
     """ Returns a content template for Mistral chat."""
-
-    keshi = role_to_str(board)
-
-    coach = (
-        "You are a chess coach playing as black and your goal is to win in as few moves as possible. Before making a move, you will first "
-        "make a qualitative comment on my last move, followed by a series of thought-steps towards choosing your next move. "
-        "You should respond as if you were teaching a student how to play chess, explaining your reasoning and strategy. "
-        "I will give you the move sequence, and you will return your next move. ")
-    roles = [coach, keshi]
-
+    role = role_to_str(board)
     schemas = [
         {
             "thoughts": "Qualitative comment on my last move.",
