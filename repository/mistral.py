@@ -19,7 +19,7 @@ class Mistral(BaseLLM):
             print(f"Error: {response.status_code} - {response.text}")
             return None
 
-    def generate_text(self, model_name="open-mistral-7b", max_tokens=1024, temperature=0.9, top_p=0.95) -> str:
+    def generate_response(self, max_tokens, temperature, top_p, model_name="open-mistral-7b") -> str:
         data = {
             "model": model_name,
             "messages": self.get_messages(),
@@ -38,8 +38,8 @@ class Mistral(BaseLLM):
             generated_text = result["choices"][0]["message"]["content"]
             return generated_text
         else:
-            print(f"Error: {response.status_code} - {response.text}")
-            return None
+            error_msg = f"Error: {response.status_code} - {response.text}"
+            return error_msg
 
     @classmethod
     def prompt_template(cls, role: str, message: str) -> dict[str, str]:
