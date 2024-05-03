@@ -40,11 +40,12 @@ def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str,
 
         # Generate move & thoughts
         output: str = llm.grab_text(prompt, model_name=model_name)
-
+        if not output:
+            break
         print('****** INPUT ******\n ')
         pprint(llm.get_messages())
         response_json, error_message = validate_response(output, board)
-
+        # If response is valid
         if response_json:
             benchmarks = dump_benchmarks(
                 prompt,
@@ -61,7 +62,7 @@ def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str,
         prompt = f"{error_message}. Previous prompt: '''{user_chess_prompt(board, pgn_moves, feature_flags)}'''"
         increment_reprompt(error_message, reprompt_counter)
 
-    pprint({'error': 'Exceeded maximum retries', "move": -1})
+    return {'thoughts': 'Exceeded maximum retries', "move": -1}
 
 
 def validate_response(output: str, board: chess.Board):
@@ -85,7 +86,10 @@ def validate_response(output: str, board: chess.Board):
         san_move = san_move.replace(' ', '')
         chess_move: chess.Move = board.parse_san(san_move)
         if chess_move in legal_moves:
-            response_json['move'] = board.san(chess_move)
+            response_json['move'] = san_move
+            print(chess_move)
+            print(legal_moves)
+            print(san_move)
             return response_json, None
         else:
             raise chess.IllegalMoveError

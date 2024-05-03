@@ -329,8 +329,8 @@ def system_chess_prompt() -> str:
     )
 
     system_msg = (
-        # "You are a chess grandmaster playing as black and your goal is to win in as few moves as possible. "
-        "I will give you the move sequence, and you will return your next move as a JSON object: {'move': 'Your move in SAN notation'.}"
+        "You are a chess grandmaster playing as black and your goal is to win in as few moves as possible."
+        "I will give you the move sequence, and you will return your next move. Return your move as a JSON object with the following format: 'move': 'Your move in SAN notation'."
     )
 
     # system_msg = "You are a chess grandmaster and your goal is to win in as few moves as possible. I will give you the move sequence with information about the board-state, then you will comment on my last move before, before applying step-by-step reasoning to choose the best possible move to return."
