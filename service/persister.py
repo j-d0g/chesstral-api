@@ -13,17 +13,10 @@ def increment_reprompt(error_message, reprompt_counter):
 def dump_benchmarks(prompt: str, response_json: dict, feature_flag: str, fen: str, pgn_moves: list,
                     reprompt_counts: dict, conversation: list) -> dict:
     benchmarks = {
-        "input_features": {
-            "pgn": 'p' in feature_flag,
-            "fen": 'f' in feature_flag,
-            "board": 'b' in feature_flag,
-            "legal": 'l' in feature_flag,
-            "threats": 't' in feature_flag,
-            "prompt": prompt
-        },
+        "feature_flags": feature_flag,
         "completion": response_json,
-        "conversation": conversation,
-        "reprompts": reprompt_counts,
+        "context": conversation,
+        "reprompt_counter": reprompt_counts,
         "board_info": {
             "move_num": len(pgn_moves),
             "fen": fen,

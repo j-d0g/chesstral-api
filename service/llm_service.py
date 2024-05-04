@@ -6,7 +6,7 @@ from pprint import pprint
 from repository.base_llm import BaseLLM
 from chess_util.prompt_generator import user_chess_prompt
 from service.persister import increment_reprompt, dump_benchmarks
-from service.validator import validate_response
+from service.validator import validate_json, validate_move
 
 
 def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, feature_flags: str,
@@ -29,7 +29,7 @@ def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str,
 
     # Initialise Prompt-Counter
     reprompt_counter = defaultdict(int)
-    prompt = user_chess_prompt(board, pgn_moves, feature_flags)
+    prompt: str = user_chess_prompt(board, pgn_moves, feature_flags)
 
     # HANDLE GENERATION & RETRIES
     for retry in range(max_retries):
@@ -38,16 +38,18 @@ def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str,
             model_name = upgrade_model(model_name)
             [llm.pop_message() for _ in range(retry%reset_freq)]
 
-        # Generate move & thoughts
         output: str = llm.grab_text(prompt, model_name=model_name)
-        if not output:
-            break
+
         print('****** INPUT ******\n ')
         pprint(llm.get_messages())
-        response_json, error_message = validate_response(output, board)
-        # If response is valid
-        if response_json:
-            benchmarks = dump_benchmarks(
+
+        response_json: dict = validate_json(output, board)
+
+        if 'error' not in response_json:
+            response_json: dict = validate_move(board, response_json)
+
+        if 'error' not in response_json:
+            benchmarks: dict = dump_benchmarks(
                 prompt,
                 response_json,
                 feature_flags,
@@ -59,10 +61,10 @@ def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str,
             [llm.pop_message() for _ in range(retry)]
             return benchmarks
 
-        prompt = f"{error_message}. Previous prompt: '''{user_chess_prompt(board, pgn_moves, feature_flags)}'''"
-        increment_reprompt(error_message, reprompt_counter)
+        prompt = f"{response_json['error']}. Previous prompt: '''{user_chess_prompt(board, pgn_moves, feature_flags)}'''"
+        increment_reprompt(response_json['error'], reprompt_counter)
 
-    return {'thoughts': 'Exceeded maximum retries', "move": -1}
+    raise ValueError("Max retries exceeded. Unable to generate a valid response.")
 
 
 def upgrade_model(model_name: str) -> str:
