@@ -9,10 +9,11 @@ from service.persister import increment_reprompt, dump_data
 from service.validator import validate_json, validate_move
 
 
-def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, feature_flags: str,
-                  max_retries: int = 10) -> dict:
+def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, feature_flags: str,
+                 max_retries: int = 10, reset_cycle: int = 5) -> dict:
     """
     Generates a chess move using the Mistral API.
+    :param reset_cycle: number of retries before resetting the error messages
     :param feature_flags: list of booleans corresponding to what features to include in the prompt
     :param pgn_moves: list of moves in SAN string format
     :param fen: string representing the current board state
@@ -21,6 +22,7 @@ def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str,
     :param max_retries: Maximum number of retries before giving up (default: 15)
     :return: JSON object containing the move and thoughts, or an error message
     """
+
     # Initialise board using FEN, and push the user's last move
     board = chess.Board(fen)
     board.push_san(pgn_moves[-1])
@@ -33,16 +35,10 @@ def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str,
 
     # HANDLE GENERATION & RETRIES
     for retry in range(max_retries):
-        reset_freq = 5
-        if (retry + 1) % reset_freq == 0:
-            model_name = upgrade_model(model_name)
-            [llm.pop_message() for _ in range(retry%reset_freq)]
+        if (retry + 1) % reset_cycle == 0:
+            [llm.pop_message() for _ in range(retry % reset_cycle)]
 
         output: str = llm.grab_text(prompt, model_name=model_name)
-
-        print('****** INPUT ******\n ')
-        pprint(llm.get_messages())
-
         response_json: dict = validate_json(output)
 
         if 'error' not in response_json:
@@ -73,10 +69,18 @@ def upgrade_model(model_name: str) -> str:
     :return:
     """
     if "mistral" in model_name or "mixtral" in model_name:
-        models = {"1": "open-mistral-7b", "2": "open-mixtral-8x7b", "3": "open-mixtral-8x22b",
-                  "4": "mistral-medium-latest", "5": "mistral-large-latest"}
+        models = {
+            "1": "open-mistral-7b",
+            "2": "open-mixtral-8x7b",
+            "3": "open-mixtral-8x22b",
+            "4": "mistral-medium-latest",
+            "5": "mistral-large-latest"
+        }
     elif "gpt" in model_name:
-        models = {"1": "gpt-3.5-turbo-0125", "2": "gpt-4-turbo"}
+        models = {
+            "1": "gpt-3.5-turbo-0125",
+            "2": "gpt-4-turbo"
+        }
     else:
         raise ValueError("Model not supported")
 
@@ -84,6 +88,12 @@ def upgrade_model(model_name: str) -> str:
 
 
 def upgrade(models, model_name):
+    """
+    Helper function for upgrade_model
+    :param models:
+    :param model_name:
+    :return:
+    """
     inverted_models = {v: k for k, v in models.items()}
     current_model = inverted_models[model_name]
     next_model = int(current_model) + 1

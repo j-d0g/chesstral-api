@@ -8,7 +8,7 @@ from repository.llama import Llama
 from repository.mistral import Mistral
 from chess_util.prompt_generator import system_chess_prompt
 from chess_util.stockfish_engine import get_stockfish_move
-from service.llm_service import generate_move
+from service.llm_service import get_llm_move
 from chess_util.feature_extractor import to_san
 
 from dotenv import load_dotenv
@@ -47,7 +47,7 @@ class ChessLLMResource:
         llm.add_message("system", system_chess_prompt())
         if data['contextOn']:
             llm.add_messages(self.conversation[1:])
-        response = generate_move(self.pgn_moves, fen, llm, engine_name, 'p')
+        response = get_llm_move(self.pgn_moves, fen, llm, engine_name, 'p')
         self.conversation = llm.get_messages()
         self.pgn_moves.append(response['prompt']['completion']['move'])
 
