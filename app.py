@@ -58,10 +58,6 @@ class ChessLLMResource:
         self.conversation = []
         return jsonify({'message': 'Game reset!'})
 
-    def reset_context(self):
-        self.conversation = []
-        return jsonify({'message': 'Context reset!'})
-
 
 chess_llm = ChessLLMResource()
 
@@ -74,11 +70,6 @@ def get_computer_move():
 @app.route('/api/reset', methods=['POST'])
 def reset_game():
     return chess_llm.reset_game()
-
-
-@app.route('/api/reset_context', methods=['POST'])
-def reset_context():
-    return chess_llm.reset_context()
 
 
 if __name__ == '__main__':

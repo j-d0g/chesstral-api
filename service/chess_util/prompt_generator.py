@@ -79,7 +79,7 @@ def generate_prompt(board: chess.Board,
                     positions=False,
                     legalmoves=False,
                     threats=False,
-                    pgn_moves: list[list[str]] = None
+                    pgn_moves: list[str] = None
                     ) -> str:
     """
     Extracts and formats the game state into a prompt for the LLM.
@@ -300,7 +300,7 @@ def system_chess_prompt() -> str:
     """ Returns a system template for Mistral chat."""
 
     # Original with PF-BLT
-    system_msg = (
+    original = (
         'You are an auto-regressive language model that is brilliant at reasoning and playing chess at a grandmaster-level. '
         'Your goal is to use your reasoning and chess skills to produce the best chess move given a board position. '
         'Since you are autoregressive, each token you produce is another opportunity to use computation, therefore '
@@ -311,17 +311,41 @@ def system_chess_prompt() -> str:
     )
 
     # Original shortened
-    system_msg = ('You are an auto-regressive language model that is brilliant at complex reasoning.'
-                  'Since you are autoregressive, each token you produce is another opportunity to use computation, therefore '
-                  'you always spend a few sentences analysing the problem step-by-step before giving an answer.'
-                  )
+    original_short = ('You are an auto-regressive language model that is brilliant at complex reasoning.'
+                      'Since you are autoregressive, each token you produce is another opportunity to use computation, therefore '
+                      'you always spend a few sentences analysing the problem step-by-step before giving an answer.'
+                      )
 
-    # Best Performance with Thoughts
-    system_msg = (
+    # Best Performance with Best Thoughts- though they only stay relevant up to move 8.
+    best_thoughts = (
         "You are a chess coach playing as black and your goal is to win in as few moves as possible. Before making a move, you will first "
         "make a qualitative comment on my last move, followed by a series of thought-steps towards choosing your next move. "
         "You should respond as if you were teaching a student how to play chess, explaining your reasoning and strategy. "
-        "I will give you the move sequence, and you will return your next move. "
+        "I will give you the move sequence, and you will return your next move. Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
+    )
+
+    # OK.
+    best_commentary = (
+        "You are a chess coach playing as black and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move "
+        "with qualitative comments about the last move and the board-state. "
+        "Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
+    )
+
+    # Gets the furthest number of moves before hallucination
+    commentary_ahead = (
+        "You are a chess coach playing as black and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move."
+        "Before returning your move, you will first make a qualitative comment on my last move, and the current board-state. You are encouraged to think ahead a few steps. "
+        "Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
+    )
+
+    commentary_general = (
+        "You are a chess coach playing as black and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move."
+        "Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
+    )
+
+    commentary_brief = (
+        "You are a chess coach playing as black and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move, alongside a brief, single-sentence commentary on the last move."
+        "Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
     )
 
     # Best Performance on Mistral-7B
@@ -330,34 +354,23 @@ def system_chess_prompt() -> str:
         "I will give you the move sequence, and you will return your next move. Return your move as a JSON object with the following format: 'move': 'Your move in SAN notation'."
     )
 
-    return best
+    return commentary_brief
 
 
-def user_chess_prompt(board: chess.Board, pgn_moves: list[str], features_option, schema_option=0) -> str:
+def user_chess_prompt(board: chess.Board, pgn_moves: list[str], flags) -> str:
     """ Returns a content template for Mistral chat."""
-    role = role_to_str(board)
-    schemas = [
-        {
+    role = role_to_str(board) if "r" in flags else ""
+    schema = {
             "thoughts": "Qualitative comment on my last move.",
             "move": "Your move in PGN notation."
-        },
-        {
-            "thoughts": """<step 1: identify the opponent's last move from the PGN sequence, and changes in the board-state as a result of this move>.
-            <step 2: analyse the relationships between pieces in this new board-position>.
-            <step 3: determine your motive/strategy: assess the most important relationship that requires attention if applicable. if not, focus on generally good tactics given your board position>.
-            <step 4: based on your determined strategy in step 3, identify which of the moves in the set of legal-moves provided are candidates for achieving your strategy.
-            <step 5: evaluate these options, before deciding the best move and stating your reasoning.""",
-            "move": "<Your move in SAN Notation>."
         }
-    ]
+    json_str = f'Provide your thoughts and move in the correct JSON format: {schema}.' if "j" in flags else ""
 
-    json_str = f'Provide your thoughts and move in the correct JSON format: {schemas[schema_option]}.'
-
-    board_str = generate_prompt(board, pgn=('p' in features_option), fen=('f' in features_option),
-                                positions=('b' in features_option), legalmoves=('l' in features_option),
-                                threats=('t' in features_option),
+    board_str = generate_prompt(board, pgn=('p' in flags), fen=('f' in flags),
+                                positions=('b' in flags), legalmoves=('l' in flags),
+                                threats=('t' in flags),
                                 pgn_moves=pgn_moves)
 
-    prompt = " ".join([board_str])
+    prompt = " ".join([role, board_str, json_str])
 
     return prompt
