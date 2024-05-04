@@ -5,7 +5,7 @@ from pprint import pprint
 
 from repository.base_llm import BaseLLM
 from chess_util.prompt_generator import user_chess_prompt
-from service.persister import increment_reprompt, dump_benchmarks
+from service.persister import increment_reprompt, dump_data
 from service.validator import validate_json, validate_move
 
 
@@ -43,14 +43,13 @@ def generate_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str,
         print('****** INPUT ******\n ')
         pprint(llm.get_messages())
 
-        response_json: dict = validate_json(output, board)
+        response_json: dict = validate_json(output)
 
         if 'error' not in response_json:
             response_json: dict = validate_move(board, response_json)
 
         if 'error' not in response_json:
-            benchmarks: dict = dump_benchmarks(
-                prompt,
+            benchmarks: dict = dump_data(
                 response_json,
                 feature_flags,
                 fen,

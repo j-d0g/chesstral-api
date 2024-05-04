@@ -49,7 +49,7 @@ class ChessLLMResource:
             llm.add_messages(self.conversation[1:])
         response = generate_move(self.pgn_moves, fen, llm, engine_name, 'p')
         self.conversation = llm.get_messages()
-        self.pgn_moves.append(response['completion']['move'])
+        self.pgn_moves.append(response['prompt']['completion']['move'])
 
         return jsonify(response)
 
