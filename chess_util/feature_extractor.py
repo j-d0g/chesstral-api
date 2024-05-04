@@ -201,3 +201,18 @@ def extract_threats(board: chess.Board):
                         player_threats.append(threat_detail)
 
     return player_threats, enemy_threats
+
+
+def to_san(fen, last_move):
+    """
+    Pushes the last move to the board and extracts the SAN move.
+
+    :param fen:
+    :param last_move:
+    :return:
+    """
+    uci_move = last_move['from'] + last_move['to']
+    chess_move = chess.Move.from_uci(uci_move)
+    board = chess.Board(fen)
+
+    return board.san(chess_move)

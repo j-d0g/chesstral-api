@@ -2,14 +2,14 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import logging
 
-from repository.base_llm import BaseLLM
 from repository.chatgpt import ChatGPT
 from repository.claude import Claude
 from repository.llama import Llama
 from repository.mistral import Mistral
-from service.chess_util.prompt_generator import system_chess_prompt
-from service.stockfish_service import get_stockfish_move
-from service.llm_service import generate_move, to_san
+from chess_util.prompt_generator import system_chess_prompt
+from chess_util.stockfish_engine import get_stockfish_move
+from service.llm_service import generate_move
+from chess_util.feature_extractor import to_san
 
 from dotenv import load_dotenv
 import os

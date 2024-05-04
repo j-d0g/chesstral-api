@@ -1,6 +1,6 @@
 import chess
 
-from service.chess_util.feature_extractor import extract_board_pos, extract_legal_moves, extract_threats
+from chess_util.feature_extractor import extract_board_pos, extract_legal_moves, extract_threats
 
 
 def generate_game_prompts(game: chess.pgn.Game,
