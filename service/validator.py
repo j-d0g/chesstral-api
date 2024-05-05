@@ -39,7 +39,8 @@ def extract_move(move: str, board: chess.Board):
     :return: The parsed chess.Move object
     """
     try:
-        san_move: str = move[move.find('.') + 1:]
+        san_move: str = move[move.rfind('.') + 1:]
+        print(san_move)
         san_move: str = san_move.replace(' ', '')
         chess_move: chess.Move = board.parse_san(san_move)
     except (chess.IllegalMoveError, chess.InvalidMoveError) as san_error:

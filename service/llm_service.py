@@ -39,6 +39,9 @@ def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, 
             [llm.pop_message() for _ in range(retry % reset_cycle)]
 
         output: str = llm.grab_text(prompt, model_name=model_name)
+
+        pprint(llm.get_messages())
+
         response_json: dict = validate_json(output)
 
         if 'reprompt' not in response_json:

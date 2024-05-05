@@ -345,7 +345,7 @@ def system_chess_prompt() -> str:
 
     commentary_brief = (
         "You are a chess coach playing as black and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move, alongside a brief, single-sentence commentary on the last move."
-        "Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
+        "Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', 'move': 'Your move in SAN notation'."
     )
 
     # Best Performance on Mistral-7B
