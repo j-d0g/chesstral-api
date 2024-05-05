@@ -57,7 +57,7 @@ def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, 
             return benchmarks
 
         prompt = f"{response_json['reprompt']}. Previous prompt: '''{user_chess_prompt(board, pgn_moves, feature_flags)}'''"
-        increment_reprompt(response_json['error'], reprompt_counter)
+        increment_reprompt(response_json['reprompt'], reprompt_counter)
 
     raise ValueError("Max retries exceeded. Unable to generate a valid response.")
 
