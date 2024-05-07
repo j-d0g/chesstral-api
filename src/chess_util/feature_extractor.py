@@ -1,7 +1,6 @@
 import chess
 import chess.pgn
 import pandas as pd
-import numpy as np
 
 
 def read_pgn(games: list, file_path: str, num_games: int) -> list[chess.pgn.Game]:
@@ -79,31 +78,6 @@ def get_board_position(game: chess.pgn.Game, move_number: int) -> str:
     for _ in range(min(move_number, len(moves))):
         board.push(moves.pop(0))
     return board.fen()
-
-
-def get_board_positions(game: chess.pgn.Game, start_move: int, end_move: int):
-    """ Generates a list of board positions from a given game between a specific range of moves"""
-    board = game.board()
-    moves = list(game.mainline_moves())
-    board_positions = []
-    for move in moves[start_move:end_move]:
-        board.push(move)
-        board_positions.append(board.fen())
-    return board_positions
-
-    prompts = []
-    board = game.board()
-    pgn_moves = []
-
-    for move in game.mainline_moves():
-        prompts.append(generate_prompt(board, pgn_moves, pgn=pgn, fen=fen, positions=positions, legalmoves=legalmoves,
-                                       threats=threats))
-        if board.turn == chess.WHITE:
-            pgn_moves.append([])
-        pgn_moves[-1].append(board.san(move))
-        board.push(move)
-
-    return prompts
 
 
 def extract_board_pos(board: chess.Board) -> list[tuple]:
