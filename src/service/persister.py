@@ -1,15 +1,6 @@
 import json
 
 
-def increment_reprompt(error_message, reprompt_counter):
-    if "Illegal move" in error_message:
-        reprompt_counter["illegal_move"] += 1
-    elif "Invalid move format" in error_message:
-        reprompt_counter["invalid_move_format"] += 1
-    elif "Invalid JSON response" in error_message:
-        reprompt_counter["invalid_json_format"] += 1
-
-
 def dump_data(response_json: dict, feature_flag: str, fen: str, pgn_moves: list,
               reprompt_counts: dict, conversation: list) -> dict:
     data = {
@@ -31,3 +22,11 @@ def dump_data(response_json: dict, feature_flag: str, fen: str, pgn_moves: list,
         file.write("\n")
 
     return data
+
+
+def dump_human_eval():
+    pass
+
+
+def dump_game():
+    pass

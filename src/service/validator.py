@@ -111,3 +111,12 @@ def regenerate_move(error, move, board):
     else:
         raise error
     return reprompt_message
+
+
+def increment_reprompt(error_message, reprompt_counter):
+    if "Illegal move" in error_message:
+        reprompt_counter["illegal_move"] += 1
+    elif "Invalid move format" in error_message:
+        reprompt_counter["invalid_move_format"] += 1
+    elif "Invalid JSON response" in error_message:
+        reprompt_counter["invalid_json_format"] += 1

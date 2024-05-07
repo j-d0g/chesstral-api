@@ -296,9 +296,9 @@ def translate_game(game: chess.pgn.Game):
             move_number += 1
 
 
-def system_chess_prompt() -> str:
+def system_chess_prompt(turn: str = 'b') -> str:
     """ Returns a system template for Mistral chat."""
-
+    colour = 'white' if turn == 'w' else 'black'
     # Original with PF-BLT
     original = (
         'You are an auto-regressive language model that is brilliant at reasoning and playing chess at a grandmaster-level. '
@@ -316,9 +316,9 @@ def system_chess_prompt() -> str:
                       'you always spend a few sentences analysing the problem step-by-step before giving an answer.'
                       )
 
-    # Best Performance with Best Thoughts- though they only stay relevant up to move 8.
+    # Best Performance with Best thoughts, though they only stay relevant up to move 8.
     best_thoughts = (
-        "You are a chess coach playing as black and your goal is to win in as few moves as possible. Before making a move, you will first "
+        f"You are a chess coach playing as {colour} and your goal is to win in as few moves as possible. Before making a move, you will first "
         "make a qualitative comment on my last move, followed by a series of thought-steps towards choosing your next move. "
         "You should respond as if you were teaching a student how to play chess, explaining your reasoning and strategy. "
         "I will give you the move sequence, and you will return your next move. Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
@@ -326,44 +326,50 @@ def system_chess_prompt() -> str:
 
     # OK.
     best_commentary = (
-        "You are a chess coach playing as black and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move "
+        f"You are a chess coach playing as {colour} and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move "
         "with qualitative comments about the last move and the board-state. "
         "Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
     )
 
     # Gets the furthest number of moves before hallucination
     commentary_ahead = (
-        "You are a chess coach playing as black and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move."
+        f"You are a chess coach playing as {colour} and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move."
         "Before returning your move, you will first make a qualitative comment on my last move, and the current board-state. You are encouraged to think ahead a few steps. "
         "Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
     )
 
     commentary_general = (
-        "You are a chess coach playing as black and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move."
+        f"You are a chess coach playing as {colour} and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move."
         "Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
     )
 
     commentary_brief = (
-        "You are a chess coach playing as black and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move, alongside a brief, single-sentence commentary on the last move."
+        f"You are a chess coach playing as {colour} and your goal is to win in as few moves as possible. I will give you the move sequence, and you will return your next move, alongside a brief, single-sentence commentary on the last move."
         "Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', 'move': 'Your move in SAN notation'."
     )
 
     # Best Performance on Mistral-7B
     best = (
-        "You are a chess grandmaster playing as black and your goal is to win in as few moves as possible."
+        f"You are a chess grandmaster playing as {colour} and your goal is to win in as few moves as possible."
         "I will give you the move sequence, and you will return your next move. Return your move as a JSON object with the following format: 'move': 'Your move in SAN notation'."
     )
 
-    return commentary_brief
+    different_thoughts = (
+        f"You are a chess grandmaster playing as {colour} and your goal is to win in as few moves as possible. Before making a move, you will first "
+        "consider the options you have, and the consequences of each move. You should respond objectively and with clarity, and remain concise with your explanations. "
+        "I will give you the move sequence, and you will return your next move. Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
+    )
+
+    return best_commentary
 
 
 def user_chess_prompt(board: chess.Board, pgn_moves: list[str], flags) -> str:
     """ Returns a content template for Mistral chat."""
     role = role_to_str(board) if "r" in flags else ""
     schema = {
-            "thoughts": "Qualitative comment on my last move.",
-            "move": "Your move in PGN notation."
-        }
+        "thoughts": "Qualitative comment on my last move.",
+        "move": "Your move in PGN notation."
+    }
     json_str = f'Provide your thoughts and move in the correct JSON format: {schema}.' if "j" in flags else ""
 
     board_str = generate_prompt(board, pgn=('p' in flags), fen=('f' in flags),
@@ -372,5 +378,8 @@ def user_chess_prompt(board: chess.Board, pgn_moves: list[str], flags) -> str:
                                 pgn_moves=pgn_moves)
 
     prompt = " ".join([role, board_str, json_str])
+
+    if not pgn_moves:
+        prompt += 'Your move.'
 
     return prompt

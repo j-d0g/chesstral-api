@@ -5,8 +5,8 @@ from pprint import pprint
 
 from repository.base_llm import BaseLLM
 from chess_util.prompt_generator import user_chess_prompt
-from service.persister import increment_reprompt, dump_data
-from service.validator import validate_json, validate_move
+from service.persister import dump_data
+from service.validator import validate_json, validate_move, increment_reprompt
 
 
 def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, feature_flags: str,
@@ -25,7 +25,6 @@ def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, 
 
     # Initialise board using FEN, and push the user's last move
     board = chess.Board(fen)
-    board.push_san(pgn_moves[-1])
     if board.is_checkmate():
         return {"thoughts": 'Checkmate!', "move": '#'}
 
@@ -39,9 +38,6 @@ def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, 
             [llm.pop_message() for _ in range(retry % reset_cycle)]
 
         output: str = llm.grab_text(prompt, model_name=model_name)
-
-        pprint(llm.get_messages())
-
         response_json: dict = validate_json(output)
 
         if 'reprompt' not in response_json:
@@ -103,3 +99,5 @@ def upgrade(models, model_name):
     if next_model > len(models):
         return model_name
     return models[str(next_model)]
+
+

@@ -24,7 +24,7 @@ class BaseLLM(ABC):
         return self.messages
 
     def reset_messages(self):
-        self.messages = self.messages[:1]
+        self.messages = []
 
     def grab_text(self, prompt: str, model_name: str, max_tokens: int = 512, temperature: float = 0.9,
                   top_p: float = 0.95):
