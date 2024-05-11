@@ -11,7 +11,6 @@ from engine.llama import Llama
 from engine.mistral import Mistral
 from engine.stockfish import Stockfish
 from service import move_service
-from service.move_service import get_llm_move
 
 app = Flask(__name__)
 CORS(app)
