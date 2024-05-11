@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from pprint import pprint
 
 from flask import Flask, request, jsonify
@@ -9,8 +10,8 @@ from engine.claude import Claude
 from engine.llama import Llama
 from engine.mistral import Mistral
 from engine.stockfish import Stockfish
-from service.llm_engine import get_llm_move
-
+from service import move_service
+from service.move_service import get_llm_move
 
 app = Flask(__name__)
 CORS(app)
@@ -37,9 +38,19 @@ def get_computer_move():
         logging.error(f'Engine not yet supported: {engine_name}')
         return None
 
-    response = get_llm_move(moves, fen, llm, engine_name, context, 'p')
+    response = move_service.get_llm_move(moves, fen, llm, engine_name, context, 'p')
 
     return jsonify(response)
+
+
+@app.route('/api/rate_move', methods=['POST'])
+def rate_move():
+    data = request.get_json()
+    if data:
+        move_service.rate_move(data)
+    else:
+        logging.error('No data received for rating move.')
+    return "Move rated successfully", HTTPStatus.OK
 
 
 if __name__ == '__main__':

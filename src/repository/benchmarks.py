@@ -35,8 +35,10 @@ def read_data():
     return games
 
 
-def dump_human_eval():
-    pass
+def dump_human_eval(ratings: dict):
+    with open("src/data/human_eval_data.json", "a") as file:
+        json.dump(ratings, file)
+        file.write("\n")
 
 
 def dump_game():

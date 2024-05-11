@@ -2,10 +2,11 @@ from collections import defaultdict
 
 import chess
 
+import repository.benchmarks
 from engine.base_llm import BaseLLM
 from util.chess_translations import user_chess_prompt, system_chess_prompt
 from repository.benchmarks import dump_data
-from service.llm_validation import validate_json, validate_move, increment_reprompt
+from service.move_validation import validate_json, validate_move, increment_reprompt
 
 
 def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, context: list, feature_flags: str,
@@ -63,6 +64,20 @@ def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, 
         increment_reprompt(response_json['reprompt'], reprompt_counter)
 
     raise ValueError("Max retries exceeded. Unable to generate a valid response.")
+
+def rate_move(data: dict) -> int:
+    human_eval_data = {
+        "fen": data['fen'],
+        "llm": data['engineName'],
+        "move": data['move'],
+        "pgn": data['moveSequence'],
+        "move_quality": data['quality'],
+        "correctness": data['correctness'],
+        "relevance": data['relevance'],
+        "salience": data['salience']
+    }
+
+    repository.benchmarks.dump_human_eval(human_eval_data)
 
 
 def upgrade_model(model_name: str) -> str:

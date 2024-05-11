@@ -1,5 +1,5 @@
 from engine.base_llm import BaseLLM
-from service import llm_engine
+from service import move_service
 
 
 def self_improvement_scoring(move_thoughts: dict, llm: BaseLLM, model_name: str, feature_flags: str):
