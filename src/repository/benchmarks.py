@@ -19,7 +19,7 @@ def dump_data(response_json: dict, feature_flag: str, fen: str, pgn_moves: list,
         }
     }
 
-    with open("src/data/self_play_data.json", "a") as file:
+    with open("src/data/game_data/self_play_data.json", "a") as file:
         json.dump(data, file)
         file.write("\n")
 
@@ -27,7 +27,7 @@ def dump_data(response_json: dict, feature_flag: str, fen: str, pgn_moves: list,
 
 
 def read_data():
-    games = pd.read_json('src/data/self_play_data.json', lines=True)
+    games = pd.read_json('src/data/game_data/self_play_data.json', lines=True)
     df1 = pd.json_normalize(games['prompt'])
     df2 = pd.json_normalize(games['board'])
     games = pd.concat([df1, df2], axis=1)
@@ -36,7 +36,7 @@ def read_data():
 
 
 def dump_human_eval(ratings: dict):
-    with open("src/data/human_eval_data.json", "a") as file:
+    with open("src/data/game_data/human_eval_data.json", "a") as file:
         json.dump(ratings, file)
         file.write("\n")
 
