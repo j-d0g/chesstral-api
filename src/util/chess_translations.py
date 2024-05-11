@@ -1,6 +1,6 @@
 import chess
 
-from chess_util.feature_extractor import extract_board_pos, extract_legal_moves, extract_threats
+from util.chess_features import extract_board_pos, extract_legal_moves, extract_threats
 
 
 def generate_game_prompts(game: chess.pgn.Game,
@@ -360,7 +360,7 @@ def system_chess_prompt(turn: str = 'b') -> str:
         "I will give you the move sequence, and you will return your next move. Return your move as a JSON object with the following format: 'thoughts': 'Your commentary', ''move': 'Your move in SAN notation'."
     )
 
-    return best_commentary
+    return best_thoughts
 
 
 def user_chess_prompt(board: chess.Board, pgn_moves: list[str], flags) -> str:

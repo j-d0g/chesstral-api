@@ -1,15 +1,14 @@
 from collections import defaultdict
 
 import chess
-from pprint import pprint
 
-from repository.base_llm import BaseLLM
-from chess_util.prompt_generator import user_chess_prompt
-from service.persister import dump_data
-from service.validator import validate_json, validate_move, increment_reprompt
+from engine.base_llm import BaseLLM
+from util.chess_translations import user_chess_prompt, system_chess_prompt
+from repository.benchmarks import dump_data
+from service.llm_validation import validate_json, validate_move, increment_reprompt
 
 
-def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, feature_flags: str,
+def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, context: list, feature_flags: str,
                  max_retries: int = 10, reset_cycle: int = 5) -> dict:
     """
     Generates a chess move using the Mistral API.
@@ -30,7 +29,11 @@ def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, 
 
     # Initialise Prompt-Counter
     reprompt_counter = defaultdict(int)
+
+    # Initialise Prompt and Context
     prompt: str = user_chess_prompt(board, pgn_moves, feature_flags)
+    llm.add_message("system", system_chess_prompt())
+    llm.add_messages(context[1:])
 
     # Reprompt Loop
     for retry in range(max_retries):
@@ -38,6 +41,7 @@ def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, 
             [llm.pop_message() for _ in range(retry % reset_cycle)]
 
         output: str = llm.grab_text(prompt, model_name=model_name)
+        print(llm.get_messages())
         response_json: dict = validate_json(output)
 
         if 'reprompt' not in response_json:
@@ -83,21 +87,10 @@ def upgrade_model(model_name: str) -> str:
     else:
         raise ValueError("Model not supported")
 
-    return upgrade(models, model_name)
-
-
-def upgrade(models, model_name):
-    """
-    Helper function for upgrade_model
-    :param models: dict of models
-    :param model_name: current model name
-    :return: next model name
-    """
     inverted_models = {v: k for k, v in models.items()}
     current_model = inverted_models[model_name]
     next_model = int(current_model) + 1
     if next_model > len(models):
         return model_name
+
     return models[str(next_model)]
-
-

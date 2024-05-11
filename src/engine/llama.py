@@ -1,11 +1,11 @@
 import replicate
-from repository.base_llm import BaseLLM
+from engine.base_llm import BaseLLM
 
 
 class Llama(BaseLLM):
-    def __init__(self, api_key):
-        super().__init__()
-        self.client = replicate.Client(api_token=api_key)
+    def __init__(self):
+        super().__init__("REPLICATE_API_KEY")
+        self.client = replicate.Client(api_token=self.api_key)
 
     def get_models(self):
         return {

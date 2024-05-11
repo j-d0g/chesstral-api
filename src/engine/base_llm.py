@@ -1,11 +1,16 @@
 from abc import ABC, abstractmethod
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 
 class BaseLLM(ABC):
 
     @abstractmethod
-    def __init__(self):
+    def __init__(self, api_key: str):
         self.messages = []
+        self.api_key = os.getenv(api_key)
 
     @abstractmethod
     def get_models(self):

@@ -1,14 +1,18 @@
 import requests
-from repository.base_llm import BaseLLM
+from engine.base_llm import BaseLLM
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 
 class Mistral(BaseLLM):
-    def __init__(self, api_key):
-        super().__init__()
+    def __init__(self):
+        super().__init__("MISTRAL_API_KEY")
         self.api_url = "https://api.mistral.ai/v1/"
         self.headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
+            "Authorization": f"Bearer {self.api_key}"
         }
 
     def get_models(self):

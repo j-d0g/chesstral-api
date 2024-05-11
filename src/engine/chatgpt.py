@@ -1,11 +1,11 @@
 from openai import OpenAI
-from repository.base_llm import BaseLLM
+from engine.base_llm import BaseLLM
 
 
 class ChatGPT(BaseLLM):
-    def __init__(self, api_key):
-        super().__init__()
-        self.client = OpenAI(api_key=api_key)
+    def __init__(self):
+        super().__init__("GPT_API_KEY")
+        self.client = OpenAI(api_key=self.api_key)
 
     def get_models(self):
         return self.client.models.list()

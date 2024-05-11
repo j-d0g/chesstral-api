@@ -1,15 +1,18 @@
 import anthropic
-from repository.base_llm import BaseLLM
+from engine.base_llm import BaseLLM
+
 
 class Claude(BaseLLM):
-    def __init__(self, api_key):
-        super().__init__()
-        self.client = anthropic.Anthropic(api_key=api_key)
+    def __init__(self):
+        super().__init__("ANTHROPIC_API_KEY")
+        self.client = anthropic.Anthropic(api_key=self.api_key)
 
     def get_models(self):
-        return {"opus": 'claude-3-opus-20240229', "sonnet": 'claude-3-sonnet-20240229', "haiku": 'claude-3-haiku-20240307'}
+        return {"opus": 'claude-3-opus-20240229', "sonnet": 'claude-3-sonnet-20240229',
+                "haiku": 'claude-3-haiku-20240307'}
 
-    def generate_response(self, model_name="claude-3-haiku-20240307", max_tokens=1024, temperature=0.9, top_p=0.95) -> str:
+    def generate_response(self, model_name="claude-3-haiku-20240307", max_tokens=1024, temperature=0.9,
+                          top_p=0.95) -> str:
         response = anthropic.Anthropic().messages.create(
             model=model_name,
             system=self.get_messages()[0]['content'],
