@@ -1,9 +1,5 @@
 import requests
 from engine.base_llm import BaseLLM
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
 
 
 class Mistral(BaseLLM):

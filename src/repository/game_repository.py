@@ -4,8 +4,9 @@ import pandas as pd
 
 
 def dump_data(response_json: dict, feature_flag: str, fen: str, pgn_moves: list,
-              reprompt_counts: dict, conversation: list) -> dict:
+              reprompt_counts: dict, conversation: list, uiud: str) -> dict:
     data = {
+        "uuid": uiud,
         "prompt": {
             "feature_flags": feature_flag,
             "context": conversation,
@@ -26,6 +27,12 @@ def dump_data(response_json: dict, feature_flag: str, fen: str, pgn_moves: list,
     return data
 
 
+def dump_move_rating(ratings: dict):
+    with open("src/data/game_data/human_eval_data.json", "a") as file:
+        json.dump(ratings, file)
+        file.write("\n")
+
+
 def read_data():
     games = pd.read_json('src/data/game_data/self_play_data.json', lines=True)
     df1 = pd.json_normalize(games['prompt'])
@@ -33,12 +40,6 @@ def read_data():
     games = pd.concat([df1, df2], axis=1)
 
     return games
-
-
-def dump_human_eval(ratings: dict):
-    with open("src/data/game_data/human_eval_data.json", "a") as file:
-        json.dump(ratings, file)
-        file.write("\n")
 
 
 def dump_game():
