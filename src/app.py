@@ -52,5 +52,14 @@ def rate_move():
     return "Move rated successfully", HTTPStatus.OK
 
 
+@app.route('/api/eval', methods=['POST'])
+def eval_board():
+    data = request.get_json()
+    fen = data['fen']
+    stockfish = Stockfish()
+    score = stockfish.get_stockfish_evaluation(fen)
+    return jsonify(score)
+
+
 if __name__ == '__main__':
     app.run(debug=True)

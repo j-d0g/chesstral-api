@@ -1,9 +1,6 @@
 import chess.engine
 import os
-from flask import jsonify
 from dotenv import load_dotenv
-
-from util.chess_features import to_san
 
 load_dotenv()
 
@@ -30,21 +27,3 @@ class Stockfish:
         else:
             readable_score = "Mate imminent"
         return {'evaluation': readable_score}
-
-
-# Example Usage:
-
-# Create an instance of the Stockfish class
-stockfish = Stockfish()
-# Get the best move and evaluation for the initial position
-board = chess.Board()
-fen = board.fen()
-evaluation_response = stockfish.get_stockfish_evaluation(fen)
-print(evaluation_response)
-
-move_response = stockfish.get_stockfish_move(fen)
-board.push(chess.Move.from_uci(move_response['move']))
-fen = board.fen()
-evaluation_response = stockfish.get_stockfish_evaluation(fen)
-print(move_response['move'])
-print(evaluation_response)
