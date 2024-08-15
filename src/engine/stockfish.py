@@ -15,7 +15,17 @@ class Stockfish:
         result = self.engine.play(board, chess.engine.Limit(time=0.1))
         move = result.move
         commentary = f"Stockfish plays {move}"
-        return {'move': str(move), 'commentary': commentary}
+
+        return {
+            'uuid': '0',
+            'prompt': {
+                'completion': {
+                    'move': str(move),
+                    'thoughts': commentary
+                },
+                'context': []
+            },
+        }
 
     def get_stockfish_evaluation(self, fen):
         board = chess.Board(fen)
