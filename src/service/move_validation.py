@@ -58,12 +58,29 @@ def extract_move(move: str, board: chess.Board):
 def extract_json(text: str) -> str:
     """
     Cleans the text into a more readable JSON string, removing excess characters that interfere with parsing json/move.
+    Handles markdown code blocks (```json ... ```) that models like GPT-4o often use.
     :param text: Input text string
     :return: Extracted JSON string, or the original text if no JSON is found
     """
+    # First, check if the text contains markdown code blocks
+    if '```' in text:
+        # Extract content from markdown code block
+        # Look for ```json or just ```
+        import re
+        # Pattern to match code blocks with optional language specifier
+        code_block_pattern = r'```(?:json)?\s*\n?(.*?)\n?```'
+        matches = re.findall(code_block_pattern, text, re.DOTALL)
+        if matches:
+            # Use the first code block found
+            text = matches[0]
+    
+    # Remove newlines for easier parsing
     text = re.sub(r'\n', r'', text)
+    
+    # Find JSON object boundaries
     start = text.find('{')
     end = text.rfind('}')
+    
     return text[start:end + 1] if start != -1 and end != -1 else text
 
 

@@ -11,58 +11,92 @@ from engine.claude import Claude
 from engine.llama import Llama
 from engine.mistral import Mistral
 from engine.stockfish import Stockfish
+from engine.nanogpt import NanoGPT
 from repository import game_repository
 from util.chess_translations import user_chess_prompt, system_chess_prompt
 from service.move_validation import validate_json, validate_move, increment_reprompt
+from service.response_standardizer import standardize_move_response, create_error_response
 
 
 def get_computer_move(data: dict) -> dict:
     fen, engine_name, moves, context = data['fen'], data['engine'], data['pgn'], data['context']
 
-    if 'stockfish' in engine_name:
-        engine = Stockfish()
-        return engine.get_stockfish_move(fen)
-    if 'gpt' in engine_name:
-        llm = ChatGPT()
-    elif 'mistral' in engine_name or 'mixtral' in engine_name:
-        llm = Mistral()
-    elif 'llama' in engine_name:
-        llm = Llama()
-    elif 'claude' in engine_name:
-        llm = Claude()
-    else:
-        logging.error(f'Engine not yet supported: {engine_name}')
-        return {}
-
-    return get_llm_move(moves, fen, llm, engine_name, context, 'p')
+    try:
+        # Handle human vs human mode
+        if engine_name == 'You':
+            raw_response = {
+                "uuid": generate_move_id([]),
+                "move": "",  # No move for human mode
+                "thoughts": "Human vs Human mode - waiting for player input",
+                "success": False  # Mark as unsuccessful since no move is generated
+            }
+            return standardize_move_response(raw_response, engine_name, fen, success=False, error_message="Human vs Human mode")
+        
+        # Handle different engine types
+        if 'stockfish' in engine_name:
+            engine = Stockfish()
+            raw_response = engine.get_stockfish_move(fen)
+            return standardize_move_response(raw_response, engine_name, fen)
+            
+        elif 'nanogpt' in engine_name or 'nano' in engine_name:
+            engine = NanoGPT(model_name=engine_name)
+            raw_response = engine.get_nanogpt_move(fen, moves, temperature=0.8)
+            return standardize_move_response(raw_response, engine_name, fen)
+            
+        elif 'gpt' in engine_name or 'o1' in engine_name:
+            llm = ChatGPT()
+            raw_response = get_llm_move(moves, fen, llm, engine_name, context, 'p')
+            return standardize_move_response(raw_response, engine_name, fen)
+            
+        elif 'mistral' in engine_name or 'mixtral' in engine_name:
+            llm = Mistral()
+            raw_response = get_llm_move(moves, fen, llm, engine_name, context, 'p')
+            return standardize_move_response(raw_response, engine_name, fen)
+            
+        elif 'llama' in engine_name:
+            llm = Llama()
+            raw_response = get_llm_move(moves, fen, llm, engine_name, context, 'p')
+            return standardize_move_response(raw_response, engine_name, fen)
+            
+        elif 'claude' in engine_name:
+            llm = Claude()
+            raw_response = get_llm_move(moves, fen, llm, engine_name, context, 'p')
+            return standardize_move_response(raw_response, engine_name, fen)
+            
+        else:
+            error_msg = f'Engine not yet supported: {engine_name}'
+            logging.error(error_msg)
+            return create_error_response(error_msg, engine_name, fen)
+            
+    except Exception as e:
+        error_msg = f'Error generating move with {engine_name}: {str(e)}'
+        logging.error(error_msg)
+        return create_error_response(error_msg, engine_name, fen)
 
 
 def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, context: list, feature_flags: str,
                  max_retries: int = 10, reset_cycle: int = 5) -> dict:
-    # Initialise board using FEN, and push the user's last move
     board = chess.Board(fen)
     if board.is_checkmate():
         return {"thoughts": 'Checkmate!', "move": '#'}
-
-    # Initialise Prompt-Counter
     reprompt_counter = defaultdict(int)
-
-    # Initialise Prompt and Context
     prompt: str = user_chess_prompt(board, pgn_moves, feature_flags)
     llm.add_message("system", system_chess_prompt())
     llm.add_messages(context[1:])
+    return _reprompt_loop(llm, prompt, model_name, max_retries, reset_cycle, board, pgn_moves, feature_flags, fen, reprompt_counter)
 
-    # Reprompt Loop
+
+def _reprompt_loop(llm, prompt, model_name, max_retries, reset_cycle, board, pgn_moves, feature_flags, fen, reprompt_counter):
     for retry in range(max_retries):
         if (retry + 1) % reset_cycle == 0:
             [llm.pop_message() for _ in range(retry % reset_cycle)]
 
         output: str = llm.grab_text(prompt, model_name=model_name)
-        print(llm.get_messages())
+        logging.debug(f"LLM messages after grab: {llm.get_messages()}")
         response_json: dict = validate_json(output)
 
         if 'reprompt' not in response_json:
-            response_json: dict = validate_move(board, response_json)
+            response_json = validate_move(board, response_json)
 
         if 'reprompt' not in response_json:
             benchmarks: dict = game_repository.dump_data(
@@ -79,7 +113,6 @@ def get_llm_move(pgn_moves: list[str], fen: str, llm: BaseLLM, model_name: str, 
 
         prompt = f"{response_json['reprompt']}. Previous prompt: '''{user_chess_prompt(board, pgn_moves, feature_flags)}'''"
         increment_reprompt(response_json['reprompt'], reprompt_counter)
-
     raise ValueError("Max retries exceeded. Unable to generate a valid response.")
 
 
@@ -142,3 +175,7 @@ def upgrade_model(model_name: str) -> str:
         return model_name
 
     return models[str(next_model)]
+
+
+def score_thoughts(llm, model_name, response):
+    return None
