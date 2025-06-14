@@ -64,11 +64,20 @@ class StockfishEngine(ChessEngine):
         try:
             board = chess.Board(request.fen)
             
-            # Analyze position
-            info = self.engine.analyse(board, chess.engine.Limit(depth=request.depth))
+            # Analyze position with more time for better analysis
+            time_limit = max(2.0, request.depth * 0.1)  # Scale time with depth
             
-            # Get evaluation score
-            score = info["score"].relative
+            # Use multipv parameter directly in analyse call (don't configure manually)
+            info = self.engine.analyse(
+                board, 
+                chess.engine.Limit(depth=request.depth, time=time_limit), 
+                multipv=3
+            )
+            
+            # Get primary evaluation score
+            primary_info = info[0] if isinstance(info, list) else info
+            score = primary_info["score"].relative
+            
             if score.is_mate():
                 eval_score = 1000.0 if score.mate() > 0 else -1000.0
             else:
@@ -76,17 +85,61 @@ class StockfishEngine(ChessEngine):
             
             # Get best move
             best_move = None
-            if "pv" in info and info["pv"]:
-                best_move = board.san(info["pv"][0])
+            if "pv" in primary_info and primary_info["pv"]:
+                best_move = board.san(primary_info["pv"][0])
+            
+            # Build detailed analysis
+            analysis_data = {
+                "depth": primary_info.get("depth", 0),
+                "nodes": primary_info.get("nodes", 0),
+                "time": int(primary_info.get("time", 0) * 1000),  # Convert to milliseconds
+            }
+            
+            # Add principal variation
+            if "pv" in primary_info and primary_info["pv"]:
+                pv_moves = []
+                temp_board = board.copy()
+                for move in primary_info["pv"][:20]:  # Limit to first 20 moves
+                    try:
+                        pv_moves.append(temp_board.san(move))
+                        temp_board.push(move)
+                    except:
+                        break
+                analysis_data["pv"] = pv_moves
+            
+            # Add multiple PV lines if available
+            if isinstance(info, list) and len(info) > 1:
+                multipv_lines = []
+                for pv_info in info:
+                    if "pv" in pv_info and pv_info["pv"]:
+                        pv_score = pv_info["score"].relative
+                        if pv_score.is_mate():
+                            pv_eval = 1000.0 if pv_score.mate() > 0 else -1000.0
+                        else:
+                            pv_eval = float(pv_score.score()) / 100.0
+                        
+                        # Get PV moves for this line
+                        pv_moves = []
+                        temp_board = board.copy()
+                        for move in pv_info["pv"][:10]:  # Limit to first 10 moves per line
+                            try:
+                                pv_moves.append(temp_board.san(move))
+                                temp_board.push(move)
+                            except:
+                                break
+                        
+                        multipv_lines.append({
+                            "move": board.san(pv_info["pv"][0]),
+                            "evaluation": pv_eval,
+                            "pv": pv_moves
+                        })
+                
+                analysis_data["multipv"] = multipv_lines
             
             return EvaluationResponse(
                 evaluation=eval_score,
                 best_move=best_move,
-                analysis={
-                    "depth": info.get("depth", 0),
-                    "nodes": info.get("nodes", 0),
-                    "time": info.get("time", 0),
-                }
+                analysis=analysis_data
             )
             
         except Exception as e:

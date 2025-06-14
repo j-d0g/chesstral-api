@@ -33,7 +33,7 @@ class GeminiEngine(ChessEngine):
         try:
             # Get API key from environment
             api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
+            if not api_key:
                 logger.error("GOOGLE_API_KEY environment variable not set")
                 raise ValueError("Google API key not configured")
             
@@ -100,8 +100,8 @@ class GeminiEngine(ChessEngine):
                 
                 logger.info(f"Gemini attempt {attempt + 1}/{max_retries}")
                 
-                # Calculate temperature using the evaluation system's strategy
-                eval_temperature = min(((attempt / max_retries) * 1) + 0.001, 0.5)
+                # Use shared temperature calculation from base class
+                eval_temperature = self.calculate_retry_temperature(request.temperature, attempt, max_retries)
                 
                 # Configure generation parameters
                 generation_config = genai.types.GenerationConfig(

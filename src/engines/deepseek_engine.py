@@ -109,9 +109,8 @@ class DeepSeekEngine(ChessEngine):
                 
                 logger.info(f"DeepSeek attempt {attempt + 1}/{max_retries}")
                 
-                # Calculate temperature using the evaluation system's strategy
-                # Formula: min(((attempt / max_attempts) * 1) + 0.001, 0.5)
-                eval_temperature = min(((attempt / max_retries) * 1) + 0.001, 0.5)
+                # Use shared temperature calculation from base class
+                eval_temperature = self.calculate_retry_temperature(request.temperature, attempt, max_retries)
                 
                 # Prepare request data
                 data = {

@@ -1,11 +1,25 @@
-flask~=3.0.3
-flask-cors~=4.0.0
-python-chess~=1.999
+# Modern FastAPI stack
+fastapi==0.104.1
+uvicorn==0.24.0
+pydantic>=2.10.3
+websockets==12.0
+
+# Chess dependencies (keeping existing)
+python-chess==1.999
 chess~=1.10.0
+
+# AI/ML dependencies (keeping existing)  
+openai>=1.23.1
+anthropic>=0.25.6
+replicate~=0.25.1
+google-generativeai==0.3.2
+aiohttp==3.9.1
+
+# Utilities (keeping existing)
 requests~=2.31.0
 pandas~=2.2.2
 numpy~=1.26.4
-openai~=1.23.1
-python-dotenv~=1.0.1
-replicate~=0.25.1
-anthropic~=0.25.6
+python-dotenv==1.0.0
+
+# For NanoGPT support
+torch==2.1.0

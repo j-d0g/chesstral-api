@@ -463,7 +463,7 @@ async def eval_board(request: EvaluationRequest) -> EvaluationResponse:
             raise HTTPException(status_code=404, detail="Stockfish engine not available")
         
         response = await engine.evaluate(request)
-        logger.info(f"Evaluation response: score={response.score}, depth={response.depth}")
+        logger.info(f"Evaluation response: evaluation={response.evaluation}, best_move={response.best_move}")
         return response
         
     except HTTPException:

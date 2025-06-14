@@ -296,15 +296,15 @@ class NanoGPTEngine(ChessEngine):
             print(f"📏 Prompt length: {len(prompt)} characters")
             print(f"🔢 Encoded prompt: {self.encode(prompt)}")
             
-            # Try up to 5 times with EXACT temperature scaling from original
+            # Try up to 5 times with user-provided temperature as base
             max_attempts = 5
             
             for attempt in range(max_attempts):
-                # EXACT temperature scaling from original script
-                temperature = min(((attempt / max_attempts) * 1) + 0.001, 0.5)
+                # Use shared temperature calculation from base class
+                temperature = self.calculate_retry_temperature(request.temperature, attempt, max_attempts)
                 
                 print(f"🔄 ATTEMPT {attempt + 1}/{max_attempts}")
-                print(f"   🌡️  Temperature: {temperature:.6f} (original scaling)")
+                print(f"   🌡️  Temperature: {temperature:.6f} (base: {request.temperature:.6f}, attempt {attempt + 1})")
                 
                 # Generate move using the model
                 move, raw_response = self._generate_move_with_debug(prompt, temperature, attempt + 1)
