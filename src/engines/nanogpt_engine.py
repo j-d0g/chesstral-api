@@ -165,7 +165,7 @@ class GPT(nn.Module):
 class NanoGPTEngine(ChessEngine):
     """NanoGPT chess engine implementation"""
     
-    def __init__(self, model_size: str = "small-16", config: Dict[str, Any] = None):
+    def __init__(self, model_size: str = "lichess_8layers", config: Dict[str, Any] = None):
         super().__init__(f"nanogpt-{model_size}", config)
         self.model_size = model_size
         self.model: Optional[GPT] = None
@@ -253,7 +253,24 @@ class NanoGPTEngine(ChessEngine):
             
             # Initialize model
             self.model = GPT(config)
-            self.model.load_state_dict(checkpoint['model'])
+            
+            # Handle different state dict formats
+            state_dict = checkpoint['model']
+            
+            # Check if state dict has _orig_mod prefixes (from torch.compile)
+            if any(key.startswith('_orig_mod.') for key in state_dict.keys()):
+                print(f"🔧 Detected _orig_mod prefixes, cleaning state dict...")
+                # Remove _orig_mod prefixes
+                cleaned_state_dict = {}
+                for key, value in state_dict.items():
+                    if key.startswith('_orig_mod.'):
+                        cleaned_key = key.replace('_orig_mod.', '')
+                        cleaned_state_dict[cleaned_key] = value
+                    else:
+                        cleaned_state_dict[key] = value
+                state_dict = cleaned_state_dict
+            
+            self.model.load_state_dict(state_dict)
             self.model.eval()
             self.model.to(self.device)
             

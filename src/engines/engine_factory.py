@@ -34,7 +34,7 @@ class EngineFactory:
         logger.info("🔍 Testing engine availability...")
         
         engine_tests = [
-            ("nanogpt", "small-16"),
+            ("nanogpt", "lichess_8layers"),
             ("stockfish", None),
             ("openai", "o1-mini"),
             ("anthropic", "claude-4-sonnet-20250514"),
@@ -133,7 +133,7 @@ class EngineFactory:
             
         elif engine_type == "nanogpt":
             from .nanogpt_engine import NanoGPTEngine
-            return NanoGPTEngine(model or "small-16")
+            return NanoGPTEngine(model or "lichess_8layers")
             
         else:
             raise ValueError(f"Unknown engine type: {engine_type}")

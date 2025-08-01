@@ -487,7 +487,7 @@ async def list_engines() -> Dict[str, list]:
     engines_config = [
         {
             "name": "nanogpt", 
-            "models": ["small-8", "small-16", "small-24", "small-36", "medium-12", "medium-16", "large-16"],
+            "models": ["lichess_8layers", "small-8", "small-16", "small-24", "small-36", "medium-12", "medium-16", "large-16"],
             "description": "Local chess-trained NanoGPT models",
             "status": "available" if availability.get("nanogpt", False) else "unavailable"
         },
@@ -567,6 +567,77 @@ async def get_api_keys_status():
         'GOOGLE_API_KEY': bool(os.getenv('GOOGLE_API_KEY')),
         'DEEPSEEK_API_KEY': bool(os.getenv('DEEPSEEK_API_KEY')),
     }
+
+
+@app.post("/api/probe_visualization")
+async def get_probe_visualization(request: dict) -> dict:
+    """Generate probe visualization heatmap for the current board state"""
+    try:
+        logger.info(f"Probe visualization request for FEN: {request.get('fen', '')[:50]}...")
+        
+        # Import probe visualization logic
+        from service.probe_visualization import generate_probe_heatmap
+        
+        fen = request.get('fen')
+        pgn_moves = request.get('pgn', [])
+        layer = request.get('layer', 0)
+        piece_type = request.get('piece_type', 'white_pawns')  # white_pawns, black_pawns, etc.
+        
+        if not fen:
+            raise HTTPException(status_code=400, detail="FEN position is required")
+        
+        # Generate heatmap data
+        heatmap_data = await generate_probe_heatmap(fen, pgn_moves, layer, piece_type)
+        
+        logger.info(f"Probe visualization generated for layer {layer}, piece {piece_type}")
+        return heatmap_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"Error generating probe visualization: {str(e)}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+@app.post("/api/analyze_position")
+async def analyze_current_position_endpoint(request: dict) -> dict:
+    """Real-time probe analysis from current PGN string (following exact notebook approach)"""
+    try:
+        logger.info(f"Real-time position analysis request")
+        
+        # Import real-time analysis function
+        from service.probe_visualization import analyze_current_position
+        
+        current_pgn = request.get('pgn')
+        layer = request.get('layer', 5)  # Default to layer 5 like notebook
+        piece_type = request.get('piece_type', 'white_pawns')
+        
+        if not current_pgn:
+            raise HTTPException(status_code=400, detail="Current PGN string is required")
+        
+        if not current_pgn.startswith(';'):
+            current_pgn = ';' + current_pgn
+        
+        logger.info(f"Analyzing PGN: {current_pgn[:50]}... at layer {layer} for {piece_type}")
+        
+        # Generate heatmap data using real-time analysis
+        heatmap_data = await analyze_current_position(current_pgn, layer, piece_type)
+        
+        logger.info(f"Real-time analysis completed for layer {layer}, piece {piece_type}")
+        return {
+            'success': True,
+            'data': heatmap_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"Error in real-time position analysis: {str(e)}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 @app.exception_handler(Exception)
