@@ -151,12 +151,33 @@ class GPT(nn.Module):
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[:, [-1]]] = -float('Inf')
             probs = F.softmax(logits, dim=-1)
-            idx_next = torch.multinomial(probs, num_samples=1)
+            
+            # Validate probabilities before sampling
+            # Check for NaN or invalid values
+            if torch.isnan(probs).any() or torch.isinf(probs).any():
+                # Fallback to argmax if probabilities are invalid
+                idx_next = torch.argmax(logits, dim=-1, keepdim=True)
+            elif probs.sum().item() < 1e-10 or (probs == 0).all():
+                # All probabilities are zero (all logits were -inf), use argmax as fallback
+                idx_next = torch.argmax(logits, dim=-1, keepdim=True)
+            else:
+                # Ensure probabilities are valid for multinomial
+                # Add small epsilon to prevent numerical issues
+                probs = probs + 1e-10
+                probs = probs / probs.sum(dim=-1, keepdim=True)
+                try:
+                    idx_next = torch.multinomial(probs, num_samples=1)
+                except RuntimeError as e:
+                    # If multinomial still fails, fallback to argmax
+                    print(f"⚠️  multinomial failed: {e}, falling back to argmax")
+                    idx_next = torch.argmax(logits, dim=-1, keepdim=True)
+            
             # For nanogpt models, 0 is the space index
             # If we break here, we can significantly speed up inference
             # But this is a hardcoded assumption specific to my models
             # Only break on space if we've generated at least one token
-            if idx_next == 0 and idx.size(1) > original_length:
+            # idx_next is shape (batch_size, 1), so we need to extract the value
+            if idx_next[0, 0].item() == 0 and idx.size(1) > original_length:
                 break
             idx = torch.cat((idx, idx_next), dim=1)
         return idx
