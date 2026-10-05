@@ -1,7 +1,6 @@
 import os
 import chess
 from typing import Dict, Any
-import asyncio
 import logging
 import aiohttp
 
@@ -20,7 +19,6 @@ class DeepSeekEngine(ChessEngine):
         self.api_key = None
         self.available = False
         self.base_url = "https://api.deepseek.com/v1"
-        self._last_error_message = ""
     
     async def initialize(self) -> None:
         """Initialize the DeepSeek client"""
@@ -81,7 +79,7 @@ class DeepSeekEngine(ChessEngine):
             board = chess.Board(request.fen)
             
             # Use reprompting loop for robust move generation
-            move, raw_response, thoughts = await self._reprompt_loop(board, request)
+            move, raw_response, thoughts = await self.reprompt_loop(board, request)
             
             return MoveResponse(
                 move=move,
@@ -93,172 +91,34 @@ class DeepSeekEngine(ChessEngine):
             logger.error(f"DeepSeek engine error: {e}")
             raise Exception(f"DeepSeek engine error: {str(e)}")
     
-    async def _reprompt_loop(self, board: chess.Board, request: MoveRequest, max_retries: int = 5) -> tuple[str, str, str]:
-        """Reprompting loop with move validation and specific error feedback"""
-        
-        for attempt in range(max_retries):
-            try:
-                # Build prompt for this attempt
-                if attempt == 0:
-                    prompt = self._build_prompt(board, request.pgn)
-                    system_msg = "You are a chess grandmaster. Analyze the position and respond with only the best chess move in standard algebraic notation (e.g., e4, Nf3, O-O, Qxd5). Do not include explanations or commentary."
-                else:
-                    # For retries, include the error message in the prompt
-                    prompt = f"{self._last_error_message}\n\nOriginal position:\n{self._build_prompt(board, request.pgn)}"
-                    system_msg = "You made an error in your previous move. Please provide a valid chess move in standard algebraic notation."
-                
-                logger.info(f"DeepSeek attempt {attempt + 1}/{max_retries}")
-                
-                # Use shared temperature calculation from base class
-                eval_temperature = self.calculate_retry_temperature(request.temperature, attempt, max_retries)
-                
-                # Prepare request data
-                data = {
-                    "model": self.model,
-                    "messages": [
-                        {"role": "system", "content": system_msg},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "temperature": eval_temperature,  # Use evaluation system's temperature strategy
-                    "max_tokens": 50,
-                    "stream": False
-                }
-                
-                headers = {
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                }
-                
-                # Get response from DeepSeek with timeout
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        f"{self.base_url}/chat/completions",
-                        headers=headers,
-                        json=data,
-                        timeout=aiohttp.ClientTimeout(total=35)
-                    ) as response:
-                        if response.status != 200:
-                            error_text = await response.text()
-                            raise Exception(f"DeepSeek API error {response.status}: {error_text}")
-                        
-                        result = await response.json()
-                        
-                raw_response = result["choices"][0]["message"]["content"].strip()
-                logger.info(f"DeepSeek raw response: {raw_response}")
-                
-                # Extract and validate move
-                try:
-                    move = self._extract_and_validate_move(raw_response, board)
-                    # Success!
-                    thoughts = f"DeepSeek {self.model} (attempt {attempt + 1}): {raw_response}"
-                    return move, raw_response, thoughts
-                    
-                except ValueError as move_error:
-                    # Invalid move - prepare error message for next attempt
-                    self._last_error_message = str(move_error)
-                    logger.warning(f"Attempt {attempt + 1} failed: {move_error}")
-                    
-                    if attempt == max_retries - 1:
-                        # Last attempt failed
-                        raise Exception(f"Failed to get valid move after {max_retries} attempts. Last error: {move_error}")
-                    
-                    # Continue to next attempt
-                    continue
-                    
-            except asyncio.TimeoutError:
-                logger.error(f"Attempt {attempt + 1} timed out")
-                if attempt == max_retries - 1:
-                    raise Exception("DeepSeek API request timed out after multiple attempts")
-                continue
-                
-        raise Exception(f"Failed to get valid move after {max_retries} attempts")
-    
-    def _extract_and_validate_move(self, response: str, board: chess.Board) -> str:
-        """Extract and validate a move from the response, with specific error messages"""
-        
-        # Clean the response
-        response = response.strip()
-        
-        # Try to find a valid move in the response
-        potential_moves = []
-        
-        # Split by various delimiters and try each part
-        for delimiter in [' ', '\n', '\t', ',', '.', '!', '?', ':', ';']:
-            potential_moves.extend(response.split(delimiter))
-        
-        # Also try the whole response
-        potential_moves.append(response)
-        
-        # Get legal moves for error messages
-        legal_moves = list(board.legal_moves)
-        legal_moves_san = [board.san(move) for move in legal_moves]
-        
-        for potential_move in potential_moves:
-            clean_move = potential_move.strip(".,!?()[]{}\"' \n\t")
-            
-            if not clean_move:
-                continue
-                
-            try:
-                # Try to parse as SAN first
-                parsed_move = board.parse_san(clean_move)
-                return clean_move  # Return the original SAN notation
-                
-            except chess.IllegalMoveError:
-                # Try UCI format
-                try:
-                    uci_move = chess.Move.from_uci(clean_move)
-                    if uci_move in legal_moves:
-                        return board.san(uci_move)  # Convert to SAN
-                except:
-                    pass
-                    
-            except chess.AmbiguousMoveError:
-                raise ValueError(f"Ambiguous move: '{clean_move}'. Please specify the file of the origin piece (e.g., Nhg8 instead of Ng8) or use UCI format. Legal moves: {', '.join(legal_moves_san[:10])}...")
-                
-            except chess.InvalidMoveError:
-                continue  # Try next potential move
-        
-        # No valid move found in any part of the response
-        raise ValueError(f"No valid move found in response: '{response}'. Please provide a legal move in standard algebraic notation. Legal moves: {', '.join(legal_moves_san[:10])}...")
-    
-    def _extract_move(self, response: str, board: chess.Board) -> str:
-        """Legacy method - now calls the new validation method"""
-        return self._extract_and_validate_move(response, board)
-    
-    def _build_prompt(self, board: chess.Board, pgn_moves: list) -> str:
-        """Build the prompt for DeepSeek, emphasizing PGN context"""
-        prompt_parts = []
-        
-        # Start with game context if we have PGN moves
-        if pgn_moves and len(pgn_moves) > 0:
-            # Format PGN moves nicely
-            move_pairs = []
-            for i in range(0, len(pgn_moves), 2):
-                move_num = (i // 2) + 1
-                white_move = pgn_moves[i]
-                black_move = pgn_moves[i + 1] if i + 1 < len(pgn_moves) else ""
-                if black_move:
-                    move_pairs.append(f"{move_num}. {white_move} {black_move}")
-                else:
-                    move_pairs.append(f"{move_num}. {white_move}")
-            
-            prompt_parts.append("Game so far:")
-            prompt_parts.append(" ".join(move_pairs))
-            prompt_parts.append("")
-        
-        # Add current position info
-        color = "White" if board.turn else "Black"
-        prompt_parts.append(f"Current position: {color} to move")
-        
-        # Add FEN as backup context
-        prompt_parts.append(f"FEN: {board.fen()}")
-        
-        # Add tactical context
-        if board.is_check():
-            prompt_parts.append("Note: The king is in check!")
-        
-        # Request the move
-        prompt_parts.append(f"What is the best move for {color}?")
-        
-        return "\n".join(prompt_parts) 
+    async def _make_api_call(self, prompt: str, system_msg: str, temperature: float) -> str:
+        data = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": temperature,
+            "max_tokens": 50,
+            "stream": False
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=aiohttp.ClientTimeout(total=35)
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise Exception(f"DeepSeek API error {response.status}: {error_text}")
+
+                result = await response.json()
+
+        return result["choices"][0]["message"]["content"].strip()
