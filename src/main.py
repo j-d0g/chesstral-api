@@ -4,6 +4,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
@@ -41,6 +42,8 @@ from core.types import (
     EvaluationRequest, EvaluationResponse, ErrorResponse
 )
 from engines.engine_factory import EngineFactory
+from engines.catalog import ENGINE_CATALOG
+from service.ratings import save_rating
 
 # Set up logging
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -427,26 +430,13 @@ async def get_computer_move(request: MoveRequest) -> MoveResponse:
 
 @app.post("/api/rate_move")
 async def save_move_rating(request: MoveRatingRequest) -> Dict[str, str]:
-    """Save a move rating"""
     try:
-        logger.info(f"Move rating: {request.move} rated {request.rating}/5 for position {request.fen[:30]}...")
-        
-        # TODO: Implement proper move rating storage
-        # For now, just log it with validation
-        if not (1 <= request.rating <= 5):
-            raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
-        
-        if not request.move or not request.fen:
-            raise HTTPException(status_code=400, detail="Move and FEN are required")
-        
-        return {"message": f"Move '{request.move}' rated {request.rating}/5 successfully"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = f"Error rating move: {str(e)}"
-        logger.error(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
+        chess.Board(request.fen)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid FEN") from exc
+
+    save_rating(request)
+    return {"status": "saved"}
 
 
 @app.post("/api/eval", response_model=EvaluationResponse)
@@ -481,54 +471,26 @@ async def list_engines() -> Dict[str, list]:
     if not engine_factory:
         return {"engines": []}
     
-    # Get real-time availability status
+    from engines.nanogpt_paths import available_models
+
     availability = engine_factory.get_available_engines()
-    
-    engines_config = [
-        {
-            "name": "nanogpt", 
-            "models": ["small-8", "small-16", "small-24", "small-36", "medium-12", "medium-16", "large-16"],
-            "description": "Local chess-trained NanoGPT models",
-            "status": "available" if availability.get("nanogpt", False) else "unavailable"
-        },
-        {
-            "name": "stockfish", 
-            "models": ["default"],
-            "description": "Traditional chess engine",
-            "status": "available" if availability.get("stockfish", False) else "unavailable"
-        },
-        {
-            "name": "openai", 
-            "models": ["o1", "o1-mini", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"],
-            "description": "OpenAI models including o1 reasoning - Requires API key",
-            "status": "available" if availability.get("openai", False) else "unavailable"
-        },
-        {
-            "name": "anthropic", 
-            "models": ["claude-4-sonnet-20250514", "claude-3-7-sonnet-20250219", "claude-opus-4-20250514", "claude-3-opus-20240229", "claude-3-haiku-20240307"],
-            "description": "Anthropic Claude models - Requires API key",
-            "status": "available" if availability.get("anthropic", False) else "unavailable"
-        },
-        {
-            "name": "gemini", 
-            "models": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-flash-preview-05-20", "gemini-2.5-pro-preview-06-05"],
-            "description": "Google Gemini models - Requires API key",
-            "status": "available" if availability.get("gemini", False) else "unavailable"
-        },
-        {
-            "name": "deepseek", 
-            "models": ["deepseek-r1", "deepseek-r1-distill-llama-70b", "deepseek-chat", "deepseek-coder"],
-            "description": "DeepSeek models including R1 reasoning - Requires API key",
-            "status": "available" if availability.get("deepseek", False) else "unavailable"
-        },
-        {
-            "name": "replicate", 
-            "models": ["meta/llama-2-70b-chat"],
-            "description": "Meta Llama via Replicate (currently disabled) - Currently disabled",
-            "status": "unavailable"
-        },
-    ]
-    
+    engines_config = []
+    for engine_type, definition in ENGINE_CATALOG.items():
+        available = availability.get(engine_type, False)
+        engines_config.append(
+            {
+                "name": definition.name,
+                "models": (
+                    available_models()
+                    if engine_type == "nanogpt"
+                    else list(definition.models)
+                ),
+                "description": definition.description,
+                "status": "available" if available else "unavailable",
+                "reason": engine_factory.get_engine_reason(engine_type),
+            }
+        )
+
     return {"engines": engines_config}
 
 
@@ -574,7 +536,10 @@ async def global_exception_handler(request, exc):
     """Global exception handler for unhandled errors"""
     logger.error(f"Unhandled exception: {exc}")
     logger.error(traceback.format_exc())
-    return HTTPException(status_code=500, detail="Internal server error")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 
 
 if __name__ == "__main__":

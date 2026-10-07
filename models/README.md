@@ -4,9 +4,9 @@ This directory contains scripts for managing ChessGPT model checkpoints, includi
 
 ## Prerequisites
 
-1. Install required packages:
+1. Install the API requirements:
 ```bash
-pip install huggingface_hub transformers python-dotenv
+pip install -r requirements.txt
 ```
 
 2. Set up your Hugging Face token:
@@ -21,26 +21,21 @@ pip install huggingface_hub transformers python-dotenv
 
 ### Downloading Checkpoints
 
-To download a specific checkpoint:
+To download a specific checkpoint (aliases choose the highest iteration count):
 
 ```bash
-python download_checkpoint.py \
-    --model "small-24" \
-    --output_dir "checkpoints" \
-    --repo "jd0g/chess-gpt"
+.venv/bin/python models/download_checkpoint.py --model small-8
 ```
 
 To download all available checkpoints:
 
 ```bash
-python download_checkpoint.py \
-    --output_dir "checkpoints" \
-    --repo "jd0g/chess-gpt"
+.venv/bin/python models/download_checkpoint.py
 ```
 
 Arguments:
 - `--model`: Specific model to download (optional, if not specified all models will be downloaded)
-- `--output_dir`: Directory to save the checkpoints (default: "checkpoints")
+- `output_dir`: Optional destination (default: `models/checkpoints`)
 - `--repo`: Hugging Face repository name (default: "jd0g/chess-gpt")
 
 ### Uploading Checkpoints
@@ -75,4 +70,6 @@ models/
 - Make sure to keep your Hugging Face token secure and never commit it to version control
 - The scripts will create the output directory if it doesn't exist
 - For private repositories, you need to have the appropriate permissions on Hugging Face Hub
-- Checkpoints are stored in the `checkpoints/` directory at the project root 
+- Checkpoints are stored in `models/checkpoints/<model>/ckpt.pt`
+- Exact checkpoint names such as `small-24-128K_iters` are accepted
+- `meta.pkl` is read from `models/meta.pkl`

@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from engines.base import ChessEngine
 from core.types import MoveRequest, MoveResponse
+from engines.nanogpt_paths import REPO_ROOT, available_models, checkpoint_path
 
 # Simple GPT model implementation (copied from nanogpt)
 import math
@@ -174,53 +175,29 @@ class NanoGPTEngine(ChessEngine):
         self.encode = None
         self.decode = None
         self.model_available = False
-        
+
+    @property
+    def available(self) -> bool:
+        return self.model is not None
+
     async def initialize(self) -> None:
         """Load the NanoGPT model"""
         try:
-            # Try to find model files in various locations  
-            possible_paths = [
-                f"../models/{self.model_size}-ckpt.pt",     # Main path: api/models/ (CORRECT!)
-                f"../../models/{self.model_size}-ckpt.pt",  # Alternative path
-                f"models/{self.model_size}-ckpt.pt",        # Local path
-                f"../chess_gpt_eval/nanogpt/out/{self.model_size}-ckpt.pt",
-                f"../../chess_gpt_eval/nanogpt/out/{self.model_size}-ckpt.pt"
-            ]
-            
-            model_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    model_path = path
-                    break
-            
-            if not model_path:
-                print(f"⚠️  NanoGPT model {self.model_size} not found.")
-                print("   To use NanoGPT models, please:")
-                print("   1. Train models using the train_ChessGPT directory")
-                print("   2. Place model files in one of these locations:")
-                for path in possible_paths:
-                    print(f"      - {path}")
-                print("   3. For now, NanoGPT will provide fallback moves")
-                self.model_available = False
-                return
-            
+            model_path = checkpoint_path(self.model_size)
+            if model_path is None:
+                raise FileNotFoundError(
+                    f"NanoGPT checkpoint for '{self.model_size}' was not found. "
+                    "Place it at models/checkpoints/<model>/ckpt.pt or see models/README.md."
+                )
+
             print(f"Loading NanoGPT model from: {model_path}")
             
             # Load meta.pkl for vocabulary
-            meta_paths = [
-                os.path.join(os.path.dirname(model_path), 'meta.pkl'),  # Same dir as model
-                "../models/meta.pkl",  # Main path: api/models/ (CORRECT!)
-                "../../models/meta.pkl",  # Alternative path
-                "../chess_gpt_eval/nanogpt/data/chess/meta.pkl",
-                "../../chess_gpt_eval/nanogpt/data/chess/meta.pkl"
-            ]
-            
             meta = None
-            for meta_path in meta_paths:
-                if os.path.exists(meta_path):
-                    with open(meta_path, 'rb') as f:
-                        meta = pickle.load(f)
-                    break
+            meta_path = REPO_ROOT / "models" / "meta.pkl"
+            if meta_path.is_file():
+                with meta_path.open("rb") as f:
+                    meta = pickle.load(f)
             
             if meta:
                 self.meta_vocab_size = meta.get('vocab_size', 32)
@@ -268,7 +245,8 @@ class NanoGPTEngine(ChessEngine):
     async def shutdown(self) -> None:
         """Clean up resources"""
         if self.model:
-            del self.model
+            self.model = None
+            self.model_available = False
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
     

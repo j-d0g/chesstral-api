@@ -1,9 +1,10 @@
+import os
 from typing import Dict, Optional
 import logging
 import traceback
 
 from .base import ChessEngine
-from core.types import EngineType
+from .catalog import ENGINE_CATALOG
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ class EngineFactory:
         self._engines: Dict[str, ChessEngine] = {}
         self._initialized = False
         self._engine_availability: Dict[str, bool] = {}
+        self._engine_reasons: Dict[str, str] = {}
     
     async def initialize(self):
         """Initialize the factory and test engine availability"""
@@ -32,18 +34,27 @@ class EngineFactory:
     async def _test_engine_availability(self):
         """Test which engines are available"""
         logger.info("🔍 Testing engine availability...")
-        
-        engine_tests = [
-            ("nanogpt", "small-16"),
-            ("stockfish", None),
-            ("openai", "o1-mini"),
-            ("anthropic", "claude-4-sonnet-20250514"),
-            ("gemini", "gemini-2.0-flash"),
-            ("deepseek", "deepseek-chat"),
-        ]
-        
-        for engine_type, model in engine_tests:
+
+        from .nanogpt_paths import available_models
+
+        for engine_type, definition in ENGINE_CATALOG.items():
             logger.info(f"🧪 Testing {engine_type} engine...")
+            if engine_type == "nanogpt":
+                models = available_models()
+                self._engine_availability[engine_type] = bool(models)
+                self._engine_reasons[engine_type] = (
+                    "Ready"
+                    if models
+                    else "No checkpoints in models/checkpoints (see models/README.md)"
+                )
+                continue
+
+            if definition.required_env and not os.getenv(definition.required_env):
+                self._engine_availability[engine_type] = False
+                self._engine_reasons[engine_type] = f"Requires {definition.required_env}"
+                continue
+
+            model = definition.models[0] if definition.models else None
             try:
                 # Create engine instance
                 logger.info(f"   Creating {engine_type} engine instance...")
@@ -54,8 +65,17 @@ class EngineFactory:
                 await engine.initialize()
                 
                 # Check if engine is actually available
-                available = getattr(engine, 'available', True)
+                available = getattr(engine, "available", True)
                 self._engine_availability[engine_type] = available
+                self._engine_reasons[engine_type] = (
+                    "Ready"
+                    if available
+                    else (
+                        "Stockfish binary not found"
+                        if engine_type == "stockfish"
+                        else f"{engine_type.capitalize()} engine is unavailable"
+                    )
+                )
                 
                 if available:
                     logger.info(f"✅ {engine_type} engine available and ready")
@@ -69,10 +89,16 @@ class EngineFactory:
             except ImportError as e:
                 logger.warning(f"❌ {engine_type} engine unavailable - missing dependency: {e}")
                 self._engine_availability[engine_type] = False
+                self._engine_reasons[engine_type] = f"Missing dependency: {e}"
             except Exception as e:
                 logger.warning(f"❌ {engine_type} engine unavailable - error: {e}")
                 logger.debug(f"   Full error details: {traceback.format_exc()}")
                 self._engine_availability[engine_type] = False
+                self._engine_reasons[engine_type] = (
+                    "Stockfish binary not found"
+                    if engine_type == "stockfish"
+                    else f"{engine_type.capitalize()} engine unavailable: {e}"
+                )
         
         # Summary
         available_count = sum(1 for available in self._engine_availability.values() if available)
@@ -85,13 +111,44 @@ class EngineFactory:
     
     def is_engine_available(self, engine_type: str) -> bool:
         """Check if an engine type is available"""
+        if engine_type == "nanogpt":
+            from .nanogpt_paths import available_models
+
+            return bool(available_models())
         return self._engine_availability.get(engine_type, False)
+
+    def get_engine_reason(self, engine_type: str) -> str:
+        """Get a helpful availability message for an engine"""
+        if engine_type == "nanogpt":
+            return (
+                "Ready"
+                if self.is_engine_available(engine_type)
+                else "No checkpoints in models/checkpoints (see models/README.md)"
+            )
+        return self._engine_reasons.get(engine_type, "Engine status is unknown")
     
     async def get_engine(self, engine_type: str, model: Optional[str] = None) -> ChessEngine:
         """Get or create an engine instance"""
+        if engine_type == "nanogpt":
+            from .nanogpt_paths import available_models, checkpoint_path
+
+            model = model or next(iter(available_models()), None)
+            if not model:
+                raise ValueError(
+                    "No NanoGPT checkpoints are available in models/checkpoints. "
+                    "See models/README.md to download one."
+                )
+            if checkpoint_path(model) is None:
+                raise ValueError(
+                    f"NanoGPT checkpoint for '{model}' was not found in "
+                    "models/checkpoints or the legacy models directory."
+                )
+
         # Check availability first
         if not self.is_engine_available(engine_type):
-            raise ValueError(f"Engine '{engine_type}' is not available. Check API keys and dependencies.")
+            raise ValueError(
+                f"Engine '{engine_type}' is not available: {self.get_engine_reason(engine_type)}"
+            )
         
         engine_key = f"{engine_type}"
         if model:
@@ -106,26 +163,26 @@ class EngineFactory:
     
     async def _create_engine(self, engine_type: str, model: Optional[str] = None) -> ChessEngine:
         """Create a new engine instance"""
-        
+
+        definition = ENGINE_CATALOG.get(engine_type)
+        if model is None and definition and definition.models:
+            model = definition.models[0]
+
         if engine_type == "openai":
             from .openai_engine import OpenAIEngine
-            return OpenAIEngine(model or "o1-mini")
+            return OpenAIEngine(model)
             
         elif engine_type == "anthropic":
             from .anthropic_engine import AnthropicEngine
-            return AnthropicEngine(model or "claude-4-sonnet-20250514")
+            return AnthropicEngine(model or "claude-sonnet-4-20250514")
             
         elif engine_type == "gemini":
             from .gemini_engine import GeminiEngine
-            return GeminiEngine(model or "gemini-2.0-flash")
+            return GeminiEngine(model)
             
         elif engine_type == "deepseek":
             from .deepseek_engine import DeepSeekEngine
-            return DeepSeekEngine(model or "deepseek-chat")
-            
-        elif engine_type == "replicate":
-            from .replicate_engine import ReplicateEngine
-            return ReplicateEngine(model or "meta/llama-2-70b-chat")
+            return DeepSeekEngine(model)
             
         elif engine_type == "stockfish":
             from .stockfish_engine import StockfishEngine
@@ -133,14 +190,17 @@ class EngineFactory:
             
         elif engine_type == "nanogpt":
             from .nanogpt_engine import NanoGPTEngine
-            return NanoGPTEngine(model or "small-16")
+            return NanoGPTEngine(model)
             
         else:
             raise ValueError(f"Unknown engine type: {engine_type}")
     
     def get_available_engines(self) -> Dict[str, bool]:
         """Get the availability status of all engines"""
-        return self._engine_availability.copy()
+        availability = self._engine_availability.copy()
+        if "nanogpt" in availability:
+            availability["nanogpt"] = self.is_engine_available("nanogpt")
+        return availability
     
     async def shutdown(self):
         """Shutdown all engines"""

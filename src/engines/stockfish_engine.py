@@ -63,6 +63,9 @@ class StockfishEngine(ChessEngine):
         """Evaluate position with Stockfish"""
         try:
             board = chess.Board(request.fen)
+            if board.is_checkmate():
+                evaluation = -1000.0 if board.turn == chess.WHITE else 1000.0
+                return EvaluationResponse(evaluation=evaluation, mate=0)
             
             # Analyze position with more time for better analysis
             time_limit = max(2.0, request.depth * 0.1)  # Scale time with depth
@@ -76,10 +79,14 @@ class StockfishEngine(ChessEngine):
             
             # Get primary evaluation score
             primary_info = info[0] if isinstance(info, list) else info
-            score = primary_info["score"].relative
-            
-            if score.is_mate():
-                eval_score = 1000.0 if score.mate() > 0 else -1000.0
+            score = primary_info["score"].white()
+            mate = score.mate()
+
+            if mate is not None:
+                if mate == 0:
+                    eval_score = -1000.0 if board.turn == chess.WHITE else 1000.0
+                else:
+                    eval_score = 1000.0 if mate > 0 else -1000.0
             else:
                 eval_score = float(score.score()) / 100.0  # Convert centipawns to pawns
             
@@ -112,9 +119,13 @@ class StockfishEngine(ChessEngine):
                 multipv_lines = []
                 for pv_info in info:
                     if "pv" in pv_info and pv_info["pv"]:
-                        pv_score = pv_info["score"].relative
-                        if pv_score.is_mate():
-                            pv_eval = 1000.0 if pv_score.mate() > 0 else -1000.0
+                        pv_score = pv_info["score"].white()
+                        pv_mate = pv_score.mate()
+                        if pv_mate is not None:
+                            if pv_mate == 0:
+                                pv_eval = -1000.0 if board.turn == chess.WHITE else 1000.0
+                            else:
+                                pv_eval = 1000.0 if pv_mate > 0 else -1000.0
                         else:
                             pv_eval = float(pv_score.score()) / 100.0
                         
@@ -131,6 +142,7 @@ class StockfishEngine(ChessEngine):
                         multipv_lines.append({
                             "move": board.san(pv_info["pv"][0]),
                             "evaluation": pv_eval,
+                            "mate": pv_mate,
                             "pv": pv_moves
                         })
                 
@@ -138,6 +150,7 @@ class StockfishEngine(ChessEngine):
             
             return EvaluationResponse(
                 evaluation=eval_score,
+                mate=mate,
                 best_move=best_move,
                 analysis=analysis_data
             )
