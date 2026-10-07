@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from enum import Enum
 
 
@@ -14,7 +14,6 @@ class EngineType(str, Enum):
     ANTHROPIC = "anthropic"
     GEMINI = "gemini"
     DEEPSEEK = "deepseek"
-    REPLICATE = "replicate"
     STOCKFISH = "stockfish"
 
 
@@ -71,10 +70,18 @@ class MoveError(BaseModel):
 
 class MoveRatingRequest(BaseModel):
     """Request for rating a move"""
+    game_id: str
+    engine: str
     fen: str
     move: str
-    rating: int
-    context: Dict[str, Any] = {}
+    move_number: str = ""
+    commentary: str = ""
+    quality: int = Field(ge=1, le=5)
+    responsiveness: int = Field(ge=1, le=5)
+    correctness: int = Field(ge=1, le=5)
+    relevance: int = Field(ge=1, le=5)
+    salience: int = Field(ge=1, le=5)
+    review: str = Field(default="", max_length=5000)
 
 
 class EvaluationRequest(BaseModel):
@@ -86,6 +93,7 @@ class EvaluationRequest(BaseModel):
 class EvaluationResponse(BaseModel):
     """Response containing board evaluation"""
     evaluation: float
+    mate: Optional[int] = None
     best_move: Optional[str] = None
     analysis: Optional[Dict[str, Any]] = None
     
