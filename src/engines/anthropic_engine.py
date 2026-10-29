@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class AnthropicEngine(ChessEngine):
     """Anthropic Claude chess engine implementation"""
     
-    def __init__(self, model: str = "claude-4-sonnet-20250514", config: Dict[str, Any] = None):
+    def __init__(self, model: str = "claude-sonnet-4-20250514", config: Dict[str, Any] = None):
         super().__init__(f"anthropic-{model}", config)
         self.model = model
         self.client = None

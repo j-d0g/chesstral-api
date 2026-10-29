@@ -8,14 +8,38 @@ Example: python download_checkpoint.py ./checkpoints jd0g/chess-gpt
 import os
 import sys
 import argparse
+import re
+import shutil
 from pathlib import Path
+from typing import Optional
 from huggingface_hub import hf_hub_download, list_repo_files
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "models" / "checkpoints"
+load_dotenv(REPO_ROOT / ".env")
 
-def download_checkpoint(model_name, output_dir, repo_name="jd0g/chess-gpt"):
+
+def resolve_checkpoint_name(model_name: str, files: list[str]) -> Optional[str]:
+    exact_path = f"checkpoints/{model_name}/ckpt.pt"
+    if exact_path in files:
+        return model_name
+
+    alias_pattern = re.compile(
+        rf"^checkpoints/{re.escape(model_name)}-(\d+)[kK]_iters/ckpt\.pt$"
+    )
+    candidates = []
+    for path in files:
+        match = alias_pattern.match(path)
+        if match:
+            candidates.append((int(match.group(1)) * 1000, path.split("/")[1]))
+
+    if not candidates:
+        return None
+    return max(candidates)[1]
+
+
+def download_checkpoint(model_name, output_dir=DEFAULT_OUTPUT_DIR, repo_name="jd0g/chess-gpt"):
     """
     Download a checkpoint from Hugging Face Hub
     Args:
@@ -29,34 +53,36 @@ def download_checkpoint(model_name, output_dir, repo_name="jd0g/chess-gpt"):
         print("Error: HF_TOKEN environment variable not found. Please set it in your .env file.")
         return False
     
-    # Path in repo for the checkpoint
-    path_in_repo = f"checkpoints/{model_name}/ckpt.pt"
-    output_path = os.path.join(output_dir, model_name, "ckpt.pt")
-    
     print(f"Downloading checkpoint {model_name} from {repo_name}...")
     
     try:
-        # Create output directory
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        files = list_repo_files(repo_id=repo_name, token=token)
+        resolved_name = resolve_checkpoint_name(model_name, files)
+        if resolved_name is None:
+            print(f"No checkpoint found for model {model_name} in {repo_name}")
+            return False
+
+        output_path = Path(output_dir) / model_name / "ckpt.pt"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Download the file from the Hugging Face Hub
-        output_file = hf_hub_download(
+        downloaded_file = hf_hub_download(
             repo_id=repo_name,
-            filename=path_in_repo,
+            filename=f"checkpoints/{resolved_name}/ckpt.pt",
             token=token,
-            local_dir=os.path.dirname(output_path),
-            local_dir_use_symlinks=False,
-            force_download=True
         )
+        shutil.copy2(downloaded_file, output_path)
         
-        print(f"Checkpoint {model_name} downloaded successfully to: {output_file}")
+        print(f"Checkpoint {model_name} downloaded successfully to: {output_path}")
         return True
         
     except Exception as e:
         print(f"Error downloading checkpoint {model_name}: {e}")
         return False
 
-def download_all_checkpoints(output_dir, repo_name="jd0g/chess-gpt"):
+def download_all_checkpoints(
+    output_dir=DEFAULT_OUTPUT_DIR,
+    repo_name="jd0g/chess-gpt",
+):
     """
     Download all available checkpoints from Hugging Face Hub
     Args:
@@ -82,8 +108,11 @@ def download_all_checkpoints(output_dir, repo_name="jd0g/chess-gpt"):
             print(f"No checkpoints found in repository {repo_name}")
             return False
         
-        # Extract model names from paths
-        model_names = [f.split("/")[1] for f in checkpoint_files]
+        # Save the latest iteration under the aliases used by the API catalog.
+        model_names = sorted({
+            re.sub(r"-\d+[kK]_iters$", "", f.split("/")[1])
+            for f in checkpoint_files
+        })
         print(f"Found {len(model_names)} checkpoints: {', '.join(model_names)}")
         
         # Download each checkpoint
@@ -100,8 +129,12 @@ def download_all_checkpoints(output_dir, repo_name="jd0g/chess-gpt"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download ChessGPT checkpoints from Hugging Face Hub")
-    parser.add_argument("output_dir", nargs="?", default="./checkpoints", 
-                        help="Directory where to save the downloaded checkpoints")
+    parser.add_argument(
+        "output_dir",
+        nargs="?",
+        default=str(DEFAULT_OUTPUT_DIR),
+        help="Directory where to save the downloaded checkpoints",
+    )
     parser.add_argument("--repo", default="jd0g/chess-gpt", help="Hugging Face repository name")
     parser.add_argument("--model", help="Specific model to download (if not specified, all models will be downloaded)")
     
