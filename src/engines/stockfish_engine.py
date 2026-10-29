@@ -1,5 +1,6 @@
 import chess
 import chess.engine
+import os
 from typing import Dict, Any
 
 from .base import ChessEngine
@@ -18,13 +19,17 @@ class StockfishEngine(ChessEngine):
         try:
             # Try common Stockfish paths
             stockfish_paths = [
+                os.getenv("STOCKFISH_PATH"),
                 "stockfish",
                 "/usr/local/bin/stockfish", 
                 "/opt/homebrew/bin/stockfish",
-                "/usr/bin/stockfish"
+                "/usr/bin/stockfish",
+                "/usr/games/stockfish",
             ]
             
             for path in stockfish_paths:
+                if not path:
+                    continue
                 try:
                     self.engine = chess.engine.SimpleEngine.popen_uci(path)
                     break

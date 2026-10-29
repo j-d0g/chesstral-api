@@ -108,8 +108,11 @@ def download_all_checkpoints(
             print(f"No checkpoints found in repository {repo_name}")
             return False
         
-        # Extract model names from paths
-        model_names = sorted({f.split("/")[1] for f in checkpoint_files})
+        # Save the latest iteration under the aliases used by the API catalog.
+        model_names = sorted({
+            re.sub(r"-\d+[kK]_iters$", "", f.split("/")[1])
+            for f in checkpoint_files
+        })
         print(f"Found {len(model_names)} checkpoints: {', '.join(model_names)}")
         
         # Download each checkpoint

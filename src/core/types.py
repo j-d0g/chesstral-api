@@ -70,10 +70,10 @@ class MoveError(BaseModel):
 
 class MoveRatingRequest(BaseModel):
     """Request for rating a move"""
-    game_id: str
-    engine: str
+    game_id: str = Field(min_length=1)
+    engine: str = Field(min_length=1)
     fen: str
-    move: str
+    move: str = Field(min_length=1)
     move_number: str = ""
     commentary: str = ""
     quality: int = Field(ge=1, le=5)

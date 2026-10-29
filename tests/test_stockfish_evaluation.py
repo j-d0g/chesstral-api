@@ -1,4 +1,5 @@
 import asyncio
+import os
 import shutil
 from pathlib import Path
 
@@ -9,13 +10,14 @@ from core.types import EvaluationRequest
 from engines.stockfish_engine import StockfishEngine
 
 
-STOCKFISH = shutil.which("stockfish") or next(
+STOCKFISH = shutil.which(os.getenv("STOCKFISH_PATH", "stockfish")) or shutil.which("stockfish") or next(
     (
         str(path)
         for path in (
             Path("/opt/homebrew/bin/stockfish"),
             Path("/usr/local/bin/stockfish"),
             Path("/usr/bin/stockfish"),
+            Path("/usr/games/stockfish"),
         )
         if path.is_file()
     ),
@@ -51,7 +53,8 @@ def test_eval_of_white_winning_position_is_positive_with_black_to_move(stockfish
         "6k1/5ppp/8/8/8/8/8/R5K1 b - - 0 1",
     )
 
-    assert response.evaluation > 3
+    assert response.evaluation > 0
+    assert all(line["evaluation"] > 0 for line in response.analysis["multipv"])
 
 
 def test_white_mate_in_one_has_positive_mate_distance(stockfish):

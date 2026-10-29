@@ -262,7 +262,7 @@ async def get_computer_move(request: MoveRequest) -> MoveResponse:
                     "Check the engine configuration"
                 ],
                 "recovery_options": [
-                    "Switch to NanoGPT (always available)",
+                    "Switch to an available engine listed above",
                     "Verify API keys in .env file",
                     "Contact support if the issue persists"
                 ]

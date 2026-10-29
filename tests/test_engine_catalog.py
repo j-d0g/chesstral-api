@@ -8,6 +8,8 @@ from engines.anthropic_engine import AnthropicEngine
 from engines.engine_factory import EngineFactory
 from engines import nanogpt_paths
 from models.download_checkpoint import resolve_checkpoint_name
+from models import download_checkpoint
+from engines.stockfish_engine import StockfishEngine
 import main
 
 
@@ -106,3 +108,76 @@ def test_checkpoint_name_resolution_uses_highest_iteration_and_exact_names():
     assert resolve_checkpoint_name("small-24", files) == "small-24-128K_iters"
     assert resolve_checkpoint_name("small-24-128K_iters", files) == "small-24-128K_iters"
     assert resolve_checkpoint_name("large-16", files) is None
+
+
+def test_download_all_installs_latest_checkpoints_under_catalog_names(tmp_path, monkeypatch):
+    monkeypatch.setenv("HF_TOKEN", "test-token")
+    monkeypatch.setattr(nanogpt_paths, "REPO_ROOT", tmp_path)
+    files = [
+        "checkpoints/small-8-120k_iters/ckpt.pt",
+        "checkpoints/small-8-600k_iters/ckpt.pt",
+        "checkpoints/small-24-128K_iters/ckpt.pt",
+    ]
+    monkeypatch.setattr(download_checkpoint, "list_repo_files", lambda **kwargs: files)
+    source = tmp_path / "downloaded.pt"
+    source.write_bytes(b"checkpoint")
+    requested = []
+
+    def download(**kwargs):
+        requested.append(kwargs["filename"])
+        return source
+
+    monkeypatch.setattr(download_checkpoint, "hf_hub_download", download)
+
+    assert download_checkpoint.download_all_checkpoints(tmp_path / "models" / "checkpoints")
+    assert sorted(requested) == [files[2], files[1]]
+    assert nanogpt_paths.available_models() == ["small-8", "small-24"]
+
+
+@pytest.mark.parametrize("model", ["../../outside", ".", "..", "", "absolute", "windows"])
+def test_nanogpt_checkpoint_rejects_paths_outside_model_directory(tmp_path, monkeypatch, model):
+    monkeypatch.setattr(nanogpt_paths, "REPO_ROOT", tmp_path)
+    (tmp_path / "models" / "checkpoints").mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "ckpt.pt").touch()
+    if model == "absolute":
+        model = str(outside)
+    elif model == "windows":
+        model = "..\\..\\outside"
+    else:
+        candidate = tmp_path / "models" / "checkpoints" / model / "ckpt.pt"
+        candidate.touch()
+
+    assert nanogpt_paths.checkpoint_path(model) is None
+
+
+def test_nanogpt_failed_load_is_not_cached_as_available(tmp_path, monkeypatch):
+    monkeypatch.setattr(nanogpt_paths, "REPO_ROOT", tmp_path)
+    path = tmp_path / "models" / "checkpoints" / "small-8" / "ckpt.pt"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"not a checkpoint")
+    factory = EngineFactory()
+
+    with pytest.raises(RuntimeError, match="Failed to load NanoGPT model"):
+        asyncio.run(factory.get_engine("nanogpt", "small-8"))
+
+    assert factory._engines == {}
+
+
+def test_stockfish_honors_configured_binary(monkeypatch):
+    binary = "/custom/stockfish"
+    monkeypatch.setenv("STOCKFISH_PATH", binary)
+    called = []
+    sentinel = object()
+
+    def popen(path):
+        called.append(path)
+        return sentinel
+
+    monkeypatch.setattr("chess.engine.SimpleEngine.popen_uci", popen)
+    engine = StockfishEngine()
+    asyncio.run(engine.initialize())
+
+    assert called == [binary]
+    assert engine.engine is sentinel

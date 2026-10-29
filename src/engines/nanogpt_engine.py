@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from engines.base import ChessEngine
 from core.types import MoveRequest, MoveResponse
-from engines.nanogpt_paths import REPO_ROOT, available_models, checkpoint_path
+from engines.nanogpt_paths import REPO_ROOT, checkpoint_path
 
 # Simple GPT model implementation (copied from nanogpt)
 import math
@@ -178,7 +178,7 @@ class NanoGPTEngine(ChessEngine):
 
     @property
     def available(self) -> bool:
-        return self.model is not None
+        return self.model_available and self.model is not None
 
     async def initialize(self) -> None:
         """Load the NanoGPT model"""
@@ -238,9 +238,9 @@ class NanoGPTEngine(ChessEngine):
             print(f"✅ NanoGPT {self.model_size} loaded successfully on {self.device}")
             
         except Exception as e:
-            print(f"⚠️  Failed to load NanoGPT model: {e}")
-            print("   NanoGPT will provide fallback moves instead")
+            self.model = None
             self.model_available = False
+            raise RuntimeError(f"Failed to load NanoGPT model '{self.model_size}': {e}") from e
     
     async def shutdown(self) -> None:
         """Clean up resources"""

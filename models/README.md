@@ -27,7 +27,7 @@ To download a specific checkpoint (aliases choose the highest iteration count):
 .venv/bin/python models/download_checkpoint.py --model small-8
 ```
 
-To download all available checkpoints:
+To download the latest checkpoint for each available model:
 
 ```bash
 .venv/bin/python models/download_checkpoint.py
