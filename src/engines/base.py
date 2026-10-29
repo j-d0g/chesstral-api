@@ -146,7 +146,7 @@ class ChessEngine(ABC):
             try:
                 # Try to parse as SAN first
                 parsed_move = board.parse_san(clean_move)
-                return clean_move  # Return the original SAN notation
+                return board.san(parsed_move)
                 
             except chess.IllegalMoveError:
                 # Try UCI format
